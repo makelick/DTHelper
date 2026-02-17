@@ -1,33 +1,16 @@
 {
-  "manifest_version": 3,
-  "name": "DT Helper",
-  "version": "1.0.0",
-  "description": "Shows liquidity pool data from GeckoTerminal and Dexscreener on block explorer token pages.",
-  "permissions": ["storage"],
-  "action": {
-    "default_popup": "popup.html",
-    "default_title": "DT Helper settings"
-  },
-  "host_permissions": [
-    "https://solscan.io/*",
-    "https://etherscan.io/*",
-    "https://bscscan.com/*",
-    "https://polygonscan.com/*",
-    "https://basescan.org/*",
-    "https://arbiscan.io/*",
-    "https://snowscan.xyz/*",
-    "https://optimistic.etherscan.io/*",
-    "https://uniscan.xyz/*",
-    "https://berascan.com/*",
-    "https://gnosisscan.io/*",
-    "https://sonicscan.org/*",
-    "https://hyperevmscan.io/*",
-    "https://api.geckoterminal.com/*",
-    "https://api.dexscreener.com/*"
-  ],
-  "content_scripts": [
-    {
-      "matches": [
+    "manifest_version": 3,
+    "name": "DT Helper",
+    "version": "1.0.0",
+    "description": "Shows liquidity pool data from GeckoTerminal and Dexscreener on explorer token pages.",
+    "permissions": [
+        "storage"
+    ],
+    "action": {
+        "default_popup": "popup.html",
+        "default_title": "DT Helper settings"
+    },
+    "host_permissions": [
         "https://solscan.io/*",
         "https://etherscan.io/*",
         "https://bscscan.com/*",
@@ -40,11 +23,45 @@
         "https://berascan.com/*",
         "https://gnosisscan.io/*",
         "https://sonicscan.org/*",
-        "https://hyperevmscan.io/*"
-      ],
-      "js": ["config.js", "content.js"],
-      "css": ["content.css"],
-      "run_at": "document_idle"
-    }
-  ]
+        "https://hyperevmscan.io/*",
+        "https://api.geckoterminal.com/*",
+        "https://api.dexscreener.com/*"
+    ],
+    "content_scripts": [
+        {
+            "matches": [
+                "https://solscan.io/*",
+                "https://etherscan.io/*",
+                "https://bscscan.com/*",
+                "https://polygonscan.com/*",
+                "https://basescan.org/*",
+                "https://arbiscan.io/*",
+                "https://snowscan.xyz/*",
+                "https://optimistic.etherscan.io/*",
+                "https://uniscan.xyz/*",
+                "https://berascan.com/*",
+                "https://gnosisscan.io/*",
+                "https://sonicscan.org/*",
+                "https://hyperevmscan.io/*"
+            ],
+            "js": [
+                "config.js",
+                "content.js"
+            ],
+            "css": [
+                "content.css"
+            ],
+            "run_at": "document_idle"
+        }
+    ],
+    "web_accessible_resources": [
+        {
+            "resources": [
+                "icons/*"
+            ],
+            "matches": [
+                "https://*/*"
+            ]
+        }
+    ]
 }

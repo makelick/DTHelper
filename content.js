@@ -1,12 +1,49 @@
 (function () {
   'use strict';
 
-  const GEcko_BASE = 'https://api.geckoterminal.com/api/v2';
+  const Gecko_BASE = 'https://api.geckoterminal.com/api/v2';
   const DEXSCREENER_BASE = 'https://api.dexscreener.com';
+  const Gecko_FAVICON = 'https://www.geckoterminal.com/favicon.ico';
+  const DEXSCREENER_FAVICON = 'https://dexscreener.com/favicon.ico';
   const MAX_POOLS = 5;
   const POOL_ID = 'dthelper-liquidity-panel';
+  const STORAGE_DEBUG = 'dthelperDebug';
 
-  /** Human-readable DEX names (dexId -> display). */
+  function getDebugFlag() {
+    return new Promise(function (resolve) {
+      try {
+        chrome.storage.local.get([STORAGE_DEBUG], function (r) { resolve(r[STORAGE_DEBUG] !== false); });
+      } catch (_) {
+        resolve(true);
+      }
+    });
+  }
+
+  function debugLog(enable, label, data) {
+    if (!enable) return;
+    try {
+      console.log('[DTHelper]', label, data !== undefined ? data : '');
+    } catch (_) { }
+  }
+
+  function logError(label, message, err, url, status) {
+    try {
+      var parts = ['[DTHelper]', label, message];
+      if (url) parts.push('URL=' + (url.length > 80 ? url.slice(0, 77) + '…' : url));
+      if (status) parts.push('status=' + status);
+      if (err) {
+        if (err instanceof TypeError && err.message === 'Failed to fetch') {
+          parts.push('(network/CORS error)');
+        } else if (err.stack) {
+          parts.push('stack=' + err.stack.split('\n')[0]);
+        } else {
+          parts.push('error=' + String(err));
+        }
+      }
+      console.warn.apply(console, parts);
+    } catch (_) { }
+  }
+
   const DEX_NAMES = {
     'uniswap_v2': 'Uniswap V2',
     'uniswap_v3': 'Uniswap V3',
@@ -43,7 +80,6 @@
     return DEX_NAMES[lower] || lower.split(/[-_]/).map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
   }
 
-  /** Normalized pool: pair order and composition are built at render using tokenAddress. */
   function normAddr(id) {
     if (!id) return '';
     const s = String(id);
@@ -57,35 +93,109 @@
     if (x >= 1e9) return (x / 1e9).toFixed(2) + 'B';
     if (x >= 1e6) return (x / 1e6).toFixed(2) + 'M';
     if (x >= 1e3) return (x / 1e3).toFixed(2) + 'K';
-    return x.toFixed(4);
+    return x.toFixed(2);
   }
 
   /**
-   * Fetch top pools for a token from GeckoTerminal.
+   * Fetch top pools for a token from GeckoTerminal. Uses list endpoint then individual multi-pool
+   * requests (one per pool) with include_composition=true to get real reserve amounts.
+   * 
+   * API CALLS PER TOKEN PAGE (optimized with batch + fallback):
+   * - 1 list call: /networks/{network}/tokens/{token}/pools
+   * - 1 batch multi call: /networks/{network}/pools/multi/{addr1,addr2,...}?include_composition=true
+   * - Up to 5 individual multi calls (fallback if batch fails/omits pools)
+   * - Best case: 2 calls (list + batch succeeds for all pools)
+   * - Worst case: 6 calls (list + batch fails + 5 individual)
+   * 
+   * RATE LIMIT IMPACT (Public API: 30 calls/minute per https://apiguide.geckoterminal.com/faq):
+   * - Best case: ~15 token pages/minute (30 / 2 = 15), ~4 seconds between pages
+   * - Worst case: ~5 token pages/minute (30 / 6 = 5), ~12 seconds between pages
+   * - Typical: ~10 token pages/minute (30 / 3 avg = 10), ~6 seconds between pages
+   * - If users open tokens faster, they'll hit rate limits and see "Failed to fetch" errors
+   * 
    * @param {string} network - GeckoTerminal network slug
    * @param {string} tokenAddress - Token contract address
    * @returns {Promise<NormalizedPool[]>}
    */
   async function fetchGeckoTerminalPools(network, tokenAddress) {
     if (!network) return [];
-    const url = `${GEcko_BASE}/networks/${network}/tokens/${tokenAddress}/pools`;
-    const res = await fetch(url, {
-      headers: { Accept: 'application/json;version=20230203' },
-    });
-    if (!res.ok) return [];
+    const listUrl = `${Gecko_BASE}/networks/${network}/tokens/${tokenAddress}/pools`;
+    var res;
+    try {
+      res = await fetch(listUrl, {
+        headers: { Accept: 'application/json;version=20230203' },
+      });
+    } catch (e) {
+      logError('GeckoTerminal', 'List fetch failed', e, listUrl);
+      return [];
+    }
+    if (!res.ok) {
+      logError('GeckoTerminal', 'List response not ok', null, listUrl, res.status);
+      return [];
+    }
     const json = await res.json();
     const data = json.data || [];
     const included = json.included || [];
 
-    const dexMap = new Map();
     const tokenMap = new Map();
     included.forEach((inc) => {
-      if (inc.type === 'dex') dexMap.set(inc.id, inc.attributes?.name || inc.id);
       if (inc.type === 'token')
         tokenMap.set(inc.id, inc.attributes?.symbol || inc.attributes?.address || '—');
     });
 
-    return data.slice(0, MAX_POOLS).map((p) => {
+    const listPools = data.slice(0, MAX_POOLS);
+    const addresses = listPools.map((p) => (p.attributes || {}).address).filter(Boolean);
+    const compositionByAddress = new Map();
+    const headers = { Accept: 'application/json;version=20230203' };
+
+    function setCompositionFromMultiData(multiData) {
+      (multiData || []).forEach((pool) => {
+        const att = pool.attributes || {};
+        const addr = (att.address || '').toLowerCase();
+        if (!addr) return;
+        const baseBal = att.base_token_balance != null ? parseFloat(att.base_token_balance) : NaN;
+        const quoteBal = att.quote_token_balance != null ? parseFloat(att.quote_token_balance) : NaN;
+        compositionByAddress.set(addr, {
+          baseAmount: Number.isNaN(baseBal) ? '—' : formatNumber(baseBal),
+          quoteAmount: Number.isNaN(quoteBal) ? '—' : formatNumber(quoteBal),
+        });
+      });
+    }
+
+    if (addresses.length > 0) {
+      try {
+        var batchUrl = `${Gecko_BASE}/networks/${network}/pools/multi/${addresses.join(',')}?include_composition=true`;
+        var batchRes = await fetch(batchUrl, { headers });
+        if (batchRes.ok) {
+          var batchJson = await batchRes.json();
+          setCompositionFromMultiData(batchJson.data);
+        } else {
+          logError('GeckoTerminal', 'Batch multi failed, falling back to individual', null, batchUrl, batchRes.status);
+        }
+        var missing = addresses.filter(function (a) {
+          return !compositionByAddress.has((a || '').toLowerCase());
+        });
+        for (var i = 0; i < missing.length; i++) {
+          try {
+            var oneUrl = `${Gecko_BASE}/networks/${network}/pools/multi/${encodeURIComponent(missing[i])}?include_composition=true`;
+            var oneRes = await fetch(oneUrl, { headers });
+            if (oneRes.ok) {
+              var oneJson = await oneRes.json();
+              setCompositionFromMultiData(oneJson.data);
+            } else {
+              logError('GeckoTerminal', 'Individual multi failed for pool ' + (i + 1), null, oneUrl, oneRes.status);
+            }
+          } catch (e) {
+            logError('GeckoTerminal', 'Individual multi exception for pool ' + (i + 1), e, oneUrl);
+          }
+          if (i < missing.length - 1) await new Promise(function (r) { setTimeout(r, 100); });
+        }
+      } catch (e) {
+        logError('GeckoTerminal', 'Batch multi exception', e, batchUrl);
+      }
+    }
+
+    return listPools.map((p) => {
       const att = p.attributes || {};
       const name = att.name || '';
       const rel = p.relationships || {};
@@ -102,15 +212,8 @@
       const baseId = rel.base_token?.data?.id;
       const quoteId = rel.quote_token?.data?.id;
       const reserveUsd = parseFloat(att.reserve_in_usd) || 0;
-      const basePrice = parseFloat(att.base_token_price_usd) || 0;
-      const quotePrice = parseFloat(att.quote_token_price_usd) || 0;
-      let baseAmount = '—';
-      let quoteAmount = '—';
-      if (reserveUsd > 0 && basePrice > 0 && quotePrice > 0) {
-        const halfUsd = reserveUsd / 2;
-        baseAmount = formatNumber(halfUsd / basePrice);
-        quoteAmount = formatNumber(halfUsd / quotePrice);
-      }
+      const addr = (att.address || '').toLowerCase();
+      const composition = compositionByAddress.get(addr) || { baseAmount: '—', quoteAmount: '—' };
       return {
         pair: pairStr,
         liquidityUsd: reserveUsd,
@@ -118,10 +221,11 @@
         quoteSymbol: quoteSym,
         baseAddress: baseId ? normAddr(baseId) : '',
         quoteAddress: quoteId ? normAddr(quoteId) : '',
-        baseAmount,
-        quoteAmount,
+        baseAmount: composition.baseAmount,
+        quoteAmount: composition.quoteAmount,
         dex: dexId || '—',
         url: `https://www.geckoterminal.com/${network}/pools/${att.address}`,
+        geckoUrl: `https://www.geckoterminal.com/${network}/pools/${att.address}`,
         source: 'geckoterminal',
         sources: ['geckoterminal'],
       };
@@ -136,8 +240,17 @@
    */
   async function fetchDexscreenerPools(chainId, tokenAddress) {
     const url = `${DEXSCREENER_BASE}/token-pairs/v1/${chainId}/${tokenAddress}`;
-    const res = await fetch(url);
-    if (!res.ok) return [];
+    var res;
+    try {
+      res = await fetch(url);
+    } catch (e) {
+      logError('Dexscreener', 'Fetch failed', e, url);
+      return [];
+    }
+    if (!res.ok) {
+      logError('Dexscreener', 'Response not ok', null, url, res.status);
+      return [];
+    }
     const pairs = await res.json();
     if (!Array.isArray(pairs)) return [];
 
@@ -163,6 +276,7 @@
           quoteAmount,
           dex: p.dexId || '—',
           url: p.url || null,
+          dexUrl: p.url || null,
           source: 'dexscreener',
           sources: ['dexscreener'],
         };
@@ -171,9 +285,6 @@
       .slice(0, MAX_POOLS);
   }
 
-  /**
-   * Merge and dedupe by pair+dex, keep top by liquidity; prefer Dexscreener amounts when present.
-   */
   function mergePools(geckoPools, dexscreenerPools) {
     const byKey = new Map();
     for (const p of geckoPools) {
@@ -189,6 +300,8 @@
       else {
         const merged = { ...existing, liquidityUsd: Math.max(existing.liquidityUsd, p.liquidityUsd) };
         merged.sources = [...new Set([...(existing.sources || [existing.source]), ...sources])];
+        merged.geckoUrl = merged.geckoUrl || p.geckoUrl || null;
+        merged.dexUrl = merged.dexUrl || p.dexUrl || null;
         if (p.baseAmount !== '—' || p.quoteAmount !== '—') {
           merged.baseAmount = p.baseAmount;
           merged.quoteAmount = p.quoteAmount;
@@ -203,23 +316,91 @@
     return Array.from(byKey.values()).sort((a, b) => b.liquidityUsd - a.liquidityUsd).slice(0, MAX_POOLS);
   }
 
-  function renderSourceIcons(sources) {
+  const geckoInvalidCache = new Map();
+
+  async function checkGeckoPoolPageReachable(url) {
+    if (!url || typeof url !== 'string') return true;
+    const cached = geckoInvalidCache.get(url);
+    if (cached !== undefined) return !cached;
+    try {
+      const res = await fetch(url, { method: 'HEAD', credentials: 'omit' });
+      const invalid = !res.ok;
+      geckoInvalidCache.set(url, invalid);
+      return !invalid;
+    } catch (_) {
+      geckoInvalidCache.set(url, true);
+      return false;
+    }
+  }
+
+  function applyGeckoInvalidCache(pools) {
+    const uncached = [];
+    const seen = new Set();
+    for (const p of pools) {
+      if (!p.geckoUrl) continue;
+      const invalid = geckoInvalidCache.get(p.geckoUrl);
+      if (invalid === true) p.geckoInvalid = true;
+      else if (invalid === undefined && !seen.has(p.geckoUrl)) {
+        seen.add(p.geckoUrl);
+        uncached.push(p.geckoUrl);
+      }
+    }
+    return uncached;
+  }
+
+  function runBackgroundGeckoValidation(uncachedUrls) {
+    if (!uncachedUrls.length) return;
+    const panel = document.getElementById(POOL_ID);
+    if (!panel) return;
+    uncachedUrls.forEach(function (url) {
+      checkGeckoPoolPageReachable(url).then(function (ok) {
+        if (ok) return;
+        var rows = panel.querySelectorAll('tr[data-gecko-url]');
+        for (var i = 0; i < rows.length; i++) {
+          if (rows[i].dataset.geckoUrl !== url) continue;
+          var cell = rows[i].querySelector('.dthelper-src-cell');
+          if (!cell || cell.querySelector('.dthelper-src-invalid')) continue;
+          var span = document.createElement('span');
+          span.className = 'dthelper-src-invalid';
+          span.title = 'Pool page not found on GeckoTerminal';
+          span.textContent = '❌';
+          var after = cell.querySelector('.dthelper-src-gt, .dthelper-src');
+          if (after && after.nextSibling) cell.insertBefore(span, after.nextSibling);
+          else if (after) after.insertAdjacentElement('afterend', span);
+          else cell.appendChild(span);
+        }
+      });
+    });
+  }
+
+  function renderSourceIcons(sources, geckoUrl, dexUrl, geckoInvalid) {
     if (!sources || !sources.length) return '—';
     const parts = [];
+    const gtImg = `<img src="${escapeAttr(Gecko_FAVICON)}" alt="GT" class="dthelper-src-img" width="16" height="16">`;
+    const dxImg = `<img src="${escapeAttr(DEXSCREENER_FAVICON)}" alt="DX" class="dthelper-src-img" width="16" height="16">`;
     if (sources.includes('geckoterminal')) {
-      parts.push('<span class="dthelper-src dthelper-src-gt" title="GeckoTerminal">GT</span>');
+      const gt = geckoUrl
+        ? `<a class="dthelper-src dthelper-src-gt" href="${escapeAttr(geckoUrl)}" target="_blank" rel="noopener" title="GeckoTerminal">${gtImg}</a>`
+        : `<span class="dthelper-src dthelper-src-gt" title="GeckoTerminal">${gtImg}</span>`;
+      parts.push(gt);
+      if (geckoInvalid) {
+        parts.push('<span class="dthelper-src-invalid" title="Pool page not found on GeckoTerminal">❌</span>');
+      }
     }
     if (sources.includes('dexscreener')) {
-      parts.push('<span class="dthelper-src dthelper-src-dx" title="Dexscreener">DX</span>');
+      const dx = dexUrl
+        ? `<a class="dthelper-src dthelper-src-dx" href="${escapeAttr(dexUrl)}" target="_blank" rel="noopener" title="Dexscreener">${dxImg}</a>`
+        : `<span class="dthelper-src dthelper-src-dx" title="Dexscreener">${dxImg}</span>`;
+      parts.push(dx);
     }
-    return parts.length ? parts.join('') : '—';
+    return parts.length ? '<span class="dthelper-src-wrap">' + parts.join('') + '</span>' : '—';
   }
 
   function formatUsd(n) {
     if (n >= 1e9) return '$' + (n / 1e9).toFixed(2) + 'B';
     if (n >= 1e6) return '$' + (n / 1e6).toFixed(2) + 'M';
     if (n >= 1e3) return '$' + (n / 1e3).toFixed(2) + 'K';
-    return '$' + n.toFixed(2);
+    return '$' + Math.round(n);
   }
 
   function isViewedFirst(p, tokenAddress) {
@@ -239,14 +420,10 @@
     const s2 = viewedFirst ? p.quoteSymbol : p.baseSymbol;
     const composition =
       a1 !== '—' && a2 !== '—' ? `${a1} ${s1} / ${a2} ${s2}` : (a1 !== '—' ? `${a1} ${s1}` : a2 !== '—' ? `${a2} ${s2}` : '—');
+    const line1 = a1 !== '—' ? escapeHtml(a1 + ' ' + s1) : '—';
+    const line2 = a2 !== '—' ? escapeHtml(a2 + ' ' + s2) : '—';
     const compositionHtml =
-      a1 !== '—' && a2 !== '—'
-        ? `<span class="dthelper-pool-line">${escapeHtml(a1 + ' ' + s1)}</span><br><span class="dthelper-pool-line">${escapeHtml(a2 + ' ' + s2)}</span>`
-        : a1 !== '—'
-          ? `<span class="dthelper-pool-line">${escapeHtml(a1 + ' ' + s1)}</span>`
-          : a2 !== '—'
-            ? `<span class="dthelper-pool-line">${escapeHtml(a2 + ' ' + s2)}</span>`
-            : '—';
+      `<span class="dthelper-pool-line">${line1}</span><br><span class="dthelper-pool-line">${line2}</span>`;
     return { pair, composition, compositionHtml };
   }
 
@@ -257,7 +434,7 @@
     if (chainTheme) root.dataset.chain = chainTheme;
 
     const titleRow = document.createElement('div');
-    titleRow.className = 'dthelper-title-row dthelper-drag-handle';
+    titleRow.className = 'dthelper-title-row';
     const title = document.createElement('span');
     title.className = 'dthelper-title';
     title.textContent = 'Liquidity pools';
@@ -303,12 +480,13 @@
           row.dataset.href = p.url;
           row.className = 'dthelper-row-link';
         }
-        const sourceIcons = renderSourceIcons(p.sources);
+        if (p.geckoUrl) row.dataset.geckoUrl = p.geckoUrl;
+        const sourceIcons = renderSourceIcons(p.sources, p.geckoUrl, p.dexUrl, p.geckoInvalid);
         row.innerHTML = `
           <td class="dthelper-pair-cell">${escapeHtml(pair)}</td>
-          <td>${formatUsd(p.liquidityUsd)}</td>
+          <td class="dthelper-liquidity-cell">${formatUsd(p.liquidityUsd)}</td>
           <td class="dthelper-pool-cell">${compositionHtml}</td>
-          <td>${escapeHtml(toHumanDex(p.dex))}</td>
+          <td class="dthelper-dex-cell">${escapeHtml(toHumanDex(p.dex))}</td>
           <td class="dthelper-src-cell">${sourceIcons}</td>
         `;
         tbody.appendChild(row);
@@ -323,9 +501,24 @@
     }
 
     collapseBtn.addEventListener('click', function () {
-      const expanded = root.classList.toggle('dthelper-collapsed');
-      collapseBtn.dataset.expanded = expanded ? '0' : '1';
-      collapseBtn.textContent = expanded ? '+' : '−';
+      const isCurrentlyCollapsed = root.classList.contains('dthelper-collapsed');
+      if (!isCurrentlyCollapsed) {
+        const rect = root.getBoundingClientRect();
+        root.style.width = rect.width + 'px';
+        root.classList.add('dthelper-collapsed');
+        collapseBtn.dataset.expanded = '0';
+        collapseBtn.textContent = '+';
+      } else {
+        root.classList.remove('dthelper-collapsed');
+        collapseBtn.dataset.expanded = '1';
+        collapseBtn.textContent = '−';
+        requestAnimationFrame(function () {
+          requestAnimationFrame(function () {
+            const rect = root.getBoundingClientRect();
+            root.style.width = rect.width + 'px';
+          });
+        });
+      }
     });
 
     root.appendChild(titleRow);
@@ -343,78 +536,86 @@
     return String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   }
 
-  const WRAPPER_ID = 'dthelper-wrapper';
-  const STORAGE_POSITION = 'dthelperPosition';
   const STORAGE_EXPANDED = 'dthelperExpanded';
+  const STORAGE_SHOW_CARD = 'dthelperShowCard';
 
-  function setupWrapperDrag(wrapper) {
-    if (wrapper.dataset.dragSetup === '1') return;
-    wrapper.dataset.dragSetup = '1';
-    let startX = 0, startY = 0, startLeft = 0, startTop = 0;
+  function getSiteFamily() {
+    const host = window.location.hostname.replace(/^www\./, '');
+    if (host === 'solscan.io') return 'solscan';
+    return 'etherscan';
+  }
 
-    wrapper.addEventListener('mousedown', function (e) {
-      if (!e.target.closest('.dthelper-drag-handle') || e.target.closest('.dthelper-collapse-btn')) return;
-      e.preventDefault();
-      const rect = wrapper.getBoundingClientRect();
-      const style = wrapper.style;
-      /* Switch from right-based to left-based positioning so drag moves the whole card */
-      style.left = rect.left + 'px';
-      style.top = rect.top + 'px';
-      style.right = 'auto';
-      startLeft = rect.left;
-      startTop = rect.top;
-      startX = e.clientX;
-      startY = e.clientY;
+  function findInsertionPoint() {
+    if (getSiteFamily() === 'solscan') {
+      const el = document.querySelector(
+        '#__next div[class*="mx-auto"][class*="max-w"] > div[class*="items-start"][class*="mb-"]'
+      );
+      if (el) return { refEl: el, position: 'afterend' };
+    } else {
+      const header = document.querySelector('main#content > section.container-xxl');
+      if (header) return { refEl: header, position: 'afterend' };
+    }
+    return null;
+  }
 
-      function onMove(e) {
-        const dx = e.clientX - startX;
-        const dy = e.clientY - startY;
-        wrapper.style.left = (startLeft + dx) + 'px';
-        wrapper.style.top = (startTop + dy) + 'px';
-        startLeft += dx;
-        startTop += dy;
-        startX = e.clientX;
-        startY = e.clientY;
-      }
-      function onUp() {
-        document.removeEventListener('mousemove', onMove);
-        document.removeEventListener('mouseup', onUp);
-        const rect = wrapper.getBoundingClientRect();
-        try {
-          chrome.storage.local.set({ [STORAGE_POSITION]: { left: rect.left, top: rect.top } });
-        } catch (err) {}
-      }
-      document.addEventListener('mousemove', onMove);
-      document.addEventListener('mouseup', onUp);
+  function ensureInsertionPoint(callback, attempts) {
+    if (!attempts) attempts = 0;
+    if (findInsertionPoint() || attempts >= 20) { callback(); return; }
+    setTimeout(function () { ensureInsertionPoint(callback, attempts + 1); }, 250);
+  }
+
+  const WRAPPER_ID = 'dthelper-wrapper';
+
+  function applyEvmWrapperMargin(wrapper) {
+    if (!wrapper || !wrapper.classList.contains('dthelper-wrapper-evm')) return;
+    var ref = document.querySelector('main#content > section.container-xxl');
+    var ml = ref ? window.getComputedStyle(ref).marginLeft : '';
+    wrapper.style.marginLeft = ml;
+  }
+
+  var evmResizeListenerAdded = false;
+  function ensureEvmResizeListener() {
+    if (evmResizeListenerAdded) return;
+    evmResizeListenerAdded = true;
+    window.addEventListener('resize', function () {
+      var w = document.getElementById(WRAPPER_ID);
+      if (w) applyEvmWrapperMargin(w);
     });
   }
 
-  function applyStoredPosition(wrapper) {
-    try {
-      chrome.storage.local.get([STORAGE_POSITION], function (r) {
-        const pos = r[STORAGE_POSITION];
-        if (pos && typeof pos.left === 'number' && typeof pos.top === 'number') {
-          wrapper.style.left = pos.left + 'px';
-          wrapper.style.top = pos.top + 'px';
-          wrapper.style.right = 'auto';
-        }
-      });
-    } catch (err) {}
-  }
-
   function injectPanel(panelEl) {
-    let wrapper = document.getElementById(WRAPPER_ID);
-    const existing = document.getElementById(POOL_ID);
+    var existing = document.getElementById(POOL_ID);
     if (existing) existing.remove();
+
+    var wrapper = document.getElementById(WRAPPER_ID);
     if (!wrapper) {
       wrapper = document.createElement('div');
       wrapper.id = WRAPPER_ID;
-      wrapper.className = 'dthelper-wrapper';
-      document.body.appendChild(wrapper);
-      applyStoredPosition(wrapper);
-      setupWrapperDrag(wrapper);
+      wrapper.className = 'dthelper-wrapper' + (getSiteFamily() === 'etherscan' ? ' dthelper-wrapper-evm' : '');
+      var point = findInsertionPoint();
+      if (point) {
+        point.refEl.insertAdjacentElement(point.position, wrapper);
+      } else {
+        var fallback = document.querySelector('main') || document.body;
+        fallback.insertBefore(wrapper, fallback.firstChild);
+      }
     }
+    wrapper.innerHTML = '';
     wrapper.appendChild(panelEl);
+    if (wrapper.classList.contains('dthelper-wrapper-evm')) {
+      applyEvmWrapperMargin(wrapper);
+      ensureEvmResizeListener();
+    }
+  }
+
+  function getShowCardDefault(cb) {
+    try {
+      chrome.storage.local.get([STORAGE_SHOW_CARD], function (r) {
+        cb(r[STORAGE_SHOW_CARD] !== false);
+      });
+    } catch (err) {
+      cb(true);
+    }
   }
 
   function getExpandedDefault(cb) {
@@ -430,6 +631,10 @@
   async function loadAndShowPools(ctx) {
     const { address, config } = ctx;
     const chainTheme = config.theme || 'default';
+    const host = window.location.hostname || '';
+    const debug = await getDebugFlag().catch(function () { return false; });
+    const t0 = performance.now();
+    debugLog(debug, 'start', { host: host, token: address ? address.slice(0, 10) + '…' : '—' });
 
     getExpandedDefault(function (expanded) {
       const startCollapsed = !expanded;
@@ -440,33 +645,161 @@
     let geckoPools = [];
     let dexscreenerPools = [];
     let error = null;
+    var gtMs = 0;
+    var dxMs = 0;
+    var gtFailed = false;
+    var dxFailed = false;
+
+    var gtPromise = config.geckoNetwork
+      ? (function () {
+        var start = performance.now();
+        return fetchGeckoTerminalPools(config.geckoNetwork, address)
+          .then(function (pools) {
+            gtMs = Math.round(performance.now() - start);
+            debugLog(debug, 'GeckoTerminal', gtMs + 'ms, pools=' + (Array.isArray(pools) ? pools.length : 0));
+            return Array.isArray(pools) ? pools : [];
+          })
+          .catch(function (e) {
+            gtMs = Math.round(performance.now() - start);
+            gtFailed = true;
+            logError('GeckoTerminal', e && e.message ? e.message : 'Failed to fetch', e, 'fetchGeckoTerminalPools');
+            return [];
+          });
+      })()
+      : Promise.resolve([]);
+
+    var dxPromise = (function () {
+      var start = performance.now();
+      return fetchDexscreenerPools(config.dexscreenerChainId, address)
+        .then(function (pools) {
+          dxMs = Math.round(performance.now() - start);
+          debugLog(debug, 'Dexscreener', dxMs + 'ms, pools=' + (Array.isArray(pools) ? pools.length : 0));
+          return Array.isArray(pools) ? pools : [];
+        })
+        .catch(function (e) {
+          dxMs = Math.round(performance.now() - start);
+          dxFailed = true;
+          logError('Dexscreener', e && e.message ? e.message : 'Failed to fetch', e, 'fetchDexscreenerPools');
+          return [];
+        });
+    })();
 
     try {
-      const [gk, dx] = await Promise.all([
-        config.geckoNetwork ? fetchGeckoTerminalPools(config.geckoNetwork, address) : [],
-        fetchDexscreenerPools(config.dexscreenerChainId, address),
-      ]);
-      geckoPools = Array.isArray(gk) ? gk : [];
-      dexscreenerPools = Array.isArray(dx) ? dx : [];
+      var results = await Promise.all([gtPromise, dxPromise]);
+      geckoPools = results[0] || [];
+      dexscreenerPools = results[1] || [];
+      if ((gtFailed || dxFailed) && !geckoPools.length && !dexscreenerPools.length) {
+        error = 'Failed to load pool data';
+      }
     } catch (e) {
       error = e && e.message ? e.message : 'Failed to load pool data';
+      logError('loadAndShowPools', error, e);
     }
 
-    const merged = mergePools(geckoPools, dexscreenerPools);
+    var totalMs = Math.round(performance.now() - t0);
+    var merged = mergePools(geckoPools, dexscreenerPools);
+    var hasError = !!(gtFailed || dxFailed || error);
+    if (debug || hasError) {
+      var report = 'host=' + host + ' token=' + (address ? address.slice(0, 12) + '…' : '—') + ' gtMs=' + gtMs + ' dxMs=' + dxMs + ' totalMs=' + totalMs + ' pools=' + merged.length + (error ? ' error=' + String(error).replace(/\s+/g, ' ') : '');
+      console.log('[DTHelper] Report (copy for bug report):', report);
+    }
+
+    const uncachedGeckoUrls = applyGeckoInvalidCache(merged);
     getExpandedDefault(function (expanded) {
       const startCollapsed = !expanded;
       const newPanel = createPanelElement(merged, false, error, address, chainTheme, startCollapsed);
       injectPanel(newPanel);
+      runBackgroundGeckoValidation(uncachedGeckoUrls);
     });
   }
 
   function run() {
-    const ctx = getTokenPageContext();
-    if (!ctx) return;
-    loadAndShowPools(ctx);
+    var txCtx = typeof getTxPageContext !== 'undefined' ? getTxPageContext() : null;
+    if (txCtx) {
+      runTxPage(txCtx);
+      return;
+    }
+    getShowCardDefault(function (showCard) {
+      if (!showCard) return;
+      const ctx = getTokenPageContext();
+      if (!ctx) return;
+      ensureInsertionPoint(function () {
+        loadAndShowPools(ctx);
+      });
+    });
   }
 
-  if (typeof getTokenPageContext !== 'undefined') {
+  /** Find the transaction hash row to insert "Search at" after. Returns { refEl, position } or null. */
+  function findTxHashInsertionPoint() {
+    if (getSiteFamily() === 'solscan') {
+      var top = document.getElementById('top-tx-overview');
+      if (!top) return null;
+      var row = top.querySelector('div[class*="flex-row"][class*="flex-wrap"]');
+      if (row) return { refEl: row, position: 'afterend' };
+      return null;
+    }
+    var main = document.getElementById('ContentPlaceHolder1_maintable');
+    if (!main) return null;
+    var rows = main.querySelectorAll('.row.mb-4');
+    for (var i = 0; i < rows.length; i++) {
+      if (rows[i].textContent.indexOf('Transaction Hash') !== -1) {
+        return { refEl: rows[i], position: 'afterend' };
+      }
+    }
+    return null;
+  }
+
+  function createSearchAtSection(txHash) {
+    if (!txHash || typeof BRIDGE_SCANNERS === 'undefined') return null;
+    var wrap = document.createElement('div');
+    wrap.className = 'dthelper-search-at' + (window.location.hostname === 'solscan.io' ? ' dthelper-search-at--solscan' : '');
+    var label = document.createElement('span');
+    label.className = 'dthelper-search-at-label';
+    label.textContent = 'Search at';
+    var btnRow = document.createElement('div');
+    btnRow.className = 'dthelper-search-at-buttons';
+    BRIDGE_SCANNERS.forEach(function (b) {
+      var href = typeof b.url === 'function' ? b.url(txHash) : (b.url || '#');
+      var a = document.createElement('a');
+      a.href = href;
+      a.target = '_blank';
+      a.rel = 'noopener noreferrer';
+      a.className = 'dthelper-bridge-btn';
+      a.title = b.name;
+      var img = document.createElement('img');
+      img.src = (b.logo && b.logo.startsWith('http') ? b.logo : (b.logo ? chrome.runtime.getURL(b.logo) : ''));
+      img.alt = b.name;
+      img.className = 'dthelper-bridge-btn-img';
+      img.onerror = function () {
+        var fallback = document.createElement('span');
+        fallback.className = 'dthelper-bridge-btn-fallback';
+        fallback.textContent = (b.name || '?').charAt(0);
+        a.replaceChild(fallback, img);
+      };
+      a.appendChild(img);
+      btnRow.appendChild(a);
+    });
+    wrap.appendChild(label);
+    wrap.appendChild(btnRow);
+    return wrap;
+  }
+
+  function runTxPage(txCtx) {
+    function tryInject(attempts) {
+      attempts = attempts || 0;
+      var point = findTxHashInsertionPoint();
+      if (point) {
+        var section = createSearchAtSection(txCtx.txHash);
+        if (section) point.refEl.insertAdjacentElement(point.position, section);
+        return;
+      }
+      if (attempts >= 20) return;
+      setTimeout(function () { tryInject(attempts + 1); }, 250);
+    }
+    tryInject(0);
+  }
+
+  if (typeof getTokenPageContext !== 'undefined' || typeof getTxPageContext !== 'undefined') {
     run();
   }
 })();

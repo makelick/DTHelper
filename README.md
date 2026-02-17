@@ -48,14 +48,3 @@ Data is loaded automatically when you open a token page. Up to 10 of the largest
 ## Permissions
 
 - **Host permissions** only for the block explorer domains listed above and for `api.geckoterminal.com` and `api.dexscreener.com` (to fetch pool data). No other permissions are requested.
-
-## Structure
-
-- `manifest.json` — Extension manifest (Manifest V3).
-- `config.js` — Maps each scanner host to GeckoTerminal network and Dexscreener chain ID; defines token-page URL patterns.
-- `content.js` — Runs on supported sites: detects token pages, fetches pools from both APIs, merges and renders the panel.
-- `content.css` — Styles for the liquidity panel (including dark-mode–friendly overrides when the page uses a dark theme).
-
-## Next steps
-
-You can extend this with scanner-specific features (e.g. different placement or extra data per explorer) and more APIs or UI options later.
