@@ -335,42 +335,74 @@
   opacity: 0.55;
 }
 
-.dthelper-honeypot .dthelper-content {
-  min-width: 220px;
+.dthelper-tax-inline {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, sans-serif;
+  font-size: 12px;
+  line-height: 1.2;
 }
 
-.dthelper-src-hp {
+.dthelper-tax-inline--contract {
+  margin-top: 8px;
+}
+
+.dthelper-tax-link {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px;
+  border-radius: 4px;
   background: rgba(255, 152, 0, 0.15);
 }
 
-.dthelper-tax-grid {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
+.dthelper-tax-link:hover {
+  background: rgba(255, 152, 0, 0.3);
 }
 
 .dthelper-tax-item {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  min-width: 68px;
-  padding: 6px 8px;
-  border-radius: 6px;
-  background: rgba(255, 255, 255, 0.55);
-  border: 1px solid rgba(0, 0, 0, 0.08);
+  display: inline-flex;
+  align-items: baseline;
+  gap: 3px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.05);
+  white-space: nowrap;
 }
 
 .dthelper-tax-label {
   font-size: 10px;
   text-transform: uppercase;
   letter-spacing: 0.03em;
-  color: #666;
-  margin-bottom: 2px;
+  color: #6c757d;
 }
 
 .dthelper-tax-value {
-  font-size: 15px;
+  font-size: 12px;
   font-weight: 700;
+}
+
+.dthelper-tax-msg {
+  font-size: 11px;
+}
+
+.dthelper-tax-badge {
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  color: #fff;
+}
+
+.dthelper-tax-badge-bad {
+  background: #c62828;
+}
+
+.dthelper-tax-badge-warn {
+  background: #e69500;
 }
 
 .dthelper-tax-ok {
@@ -383,25 +415,6 @@
 
 .dthelper-tax-bad {
   color: #c62828;
-}
-
-.dthelper-hp-alert {
-  font-weight: 700;
-  font-size: 12px;
-  margin-bottom: 6px;
-}
-
-.dthelper-hp-meta {
-  margin-top: 6px;
-  font-size: 11px;
-  color: #666;
-}
-
-.dthelper-hp-flags {
-  margin: 4px 0 0;
-  padding-left: 16px;
-  font-size: 11px;
-  color: #8a5a00;
 }
 
 .dthelper-panel[data-chain="ethereum"] .dthelper-table th {
@@ -580,17 +593,14 @@ body.dark .dthelper-message,
 
 body.dark .dthelper-trades-split,
 body.dark .dthelper-tax-label,
-body.dark .dthelper-hp-meta,
 [data-theme="dark"] .dthelper-trades-split,
-[data-theme="dark"] .dthelper-tax-label,
-[data-theme="dark"] .dthelper-hp-meta {
+[data-theme="dark"] .dthelper-tax-label {
   color: #b0bec5;
 }
 
 body.dark .dthelper-tax-item,
 [data-theme="dark"] .dthelper-tax-item {
-  background: rgba(255, 255, 255, 0.06);
-  border-color: rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.08);
 }
 
 body.dark .dthelper-buys,
@@ -610,11 +620,6 @@ body.dark .dthelper-tax-bad,
 body.dark .dthelper-tax-warn,
 [data-theme="dark"] .dthelper-tax-warn {
   color: #ffb74d;
-}
-
-body.dark .dthelper-hp-flags,
-[data-theme="dark"] .dthelper-hp-flags {
-  color: #ffcc80;
 }
 
 body.dark .dthelper-error,

@@ -301,54 +301,71 @@ function createSearchAtSection(txHash) {
 function createHoneypotPanelElement(result, loading, error, chainTheme, honeypotUrl) {
   const root = document.createElement('div');
   root.id = HONEYPOT_ID;
-  root.className = 'dthelper-panel dthelper-honeypot';
+  root.className = 'dthelper-tax-inline';
   if (chainTheme) root.dataset.chain = chainTheme;
 
-  const titleRow = document.createElement('div');
-  titleRow.className = 'dthelper-title-row';
-  const title = document.createElement('span');
-  title.className = 'dthelper-title';
-  title.textContent = 'Token taxes';
-  titleRow.appendChild(title);
-  if (honeypotUrl) {
-    const link = document.createElement('a');
-    link.className = 'dthelper-src dthelper-src-hp';
-    link.href = honeypotUrl;
-    link.target = '_blank';
-    link.rel = 'noopener';
-    link.title = 'Open on honeypot.is';
-    link.innerHTML = `<img src="${escapeAttr(HONEYPOT_FAVICON)}" alt="HP" class="dthelper-src-img" width="16" height="16">`;
-    titleRow.appendChild(link);
+  const tooltipParts = [];
+  if (result) {
+    if (result.risk) tooltipParts.push('Risk: ' + result.risk);
+    if (result.openSource === false) tooltipParts.push('Contract not verified');
+    if (result.pairName) tooltipParts.push('Simulated via ' + result.pairName);
+    if (result.flags && result.flags.length) tooltipParts.push('Flags: ' + result.flags.slice(0, 5).join('; '));
   }
-  root.appendChild(titleRow);
 
-  const content = document.createElement('div');
-  content.className = 'dthelper-content';
+  let inner = '';
   if (error) {
-    content.innerHTML = `<div class="dthelper-message dthelper-error">${escapeHtml(error)}</div>`;
+    inner = `<span class="dthelper-tax-msg dthelper-error">${escapeHtml(error)}</span>`;
   } else if (loading) {
-    content.innerHTML = '<div class="dthelper-message dthelper-loading">Checking on honeypot.is…</div>';
+    inner = '<span class="dthelper-tax-msg dthelper-muted">Checking taxes…</span>';
   } else if (!result) {
-    content.innerHTML = '<div class="dthelper-message">No data.</div>';
+    inner = '<span class="dthelper-tax-msg dthelper-muted">No tax data</span>';
   } else {
-    const rows = [];
+    const item = (label, v) => `<span class="dthelper-tax-item"><span class="dthelper-tax-label">${label}</span><span class="dthelper-tax-value ${taxLevelClass(v)}">${escapeHtml(formatTaxPct(v))}</span></span>`;
+    const parts = [];
     if (result.isHoneypot) {
-      rows.push(`<div class="dthelper-hp-alert dthelper-tax-bad">HONEYPOT${result.honeypotReason ? ': ' + escapeHtml(result.honeypotReason) : ''}</div>`);
+      parts.push(`<span class="dthelper-tax-badge dthelper-tax-badge-bad" title="${escapeAttr(result.honeypotReason || 'honeypot.is flagged this token as a honeypot')}">HONEYPOT</span>`);
     } else if (!result.simulationSuccess) {
-      rows.push(`<div class="dthelper-hp-alert dthelper-tax-warn">Simulation failed${result.simulationError ? ': ' + escapeHtml(result.simulationError) : ''}</div>`);
+      parts.push(`<span class="dthelper-tax-badge dthelper-tax-badge-warn" title="${escapeAttr(result.simulationError || 'Simulation failed')}">SIM FAILED</span>`);
     }
-    const tax = (label, v) => `<div class="dthelper-tax-item"><span class="dthelper-tax-label">${label}</span><span class="dthelper-tax-value ${taxLevelClass(v)}">${escapeHtml(formatTaxPct(v))}</span></div>`;
-    rows.push('<div class="dthelper-tax-grid">' + tax('Buy', result.buyTax) + tax('Sell', result.sellTax) + tax('Transfer', result.transferTax) + '</div>');
-    const meta = [];
-    if (result.risk) meta.push('Risk: ' + escapeHtml(result.risk));
-    if (result.openSource === false) meta.push('Contract not verified');
-    if (result.pairName) meta.push('via ' + escapeHtml(result.pairName));
-    if (meta.length) rows.push(`<div class="dthelper-hp-meta">${meta.join(' · ')}</div>`);
-    if (result.flags && result.flags.length) {
-      rows.push('<ul class="dthelper-hp-flags">' + result.flags.slice(0, 5).map((f) => `<li>${escapeHtml(f)}</li>`).join('') + '</ul>');
+    parts.push(item('Buy', result.buyTax), item('Sell', result.sellTax), item('Transfer', result.transferTax));
+    if (result.risk) {
+      const riskCls = /high|very/i.test(result.risk) ? 'dthelper-tax-bad' : /medium|mid/i.test(result.risk) ? 'dthelper-tax-warn' : 'dthelper-tax-ok';
+      parts.push(`<span class="dthelper-tax-item"><span class="dthelper-tax-label">Risk</span><span class="dthelper-tax-value ${riskCls}">${escapeHtml(result.risk)}</span></span>`);
     }
-    content.innerHTML = rows.join('');
+    inner = parts.join('');
   }
-  root.appendChild(content);
+
+  const link = honeypotUrl
+    ? `<a class="dthelper-tax-link" href="${escapeAttr(honeypotUrl)}" target="_blank" rel="noopener" title="${escapeAttr(['Taxes by honeypot.is'].concat(tooltipParts).join('\n'))}"><img src="${escapeAttr(HONEYPOT_FAVICON)}" alt="honeypot.is" class="dthelper-src-img" width="14" height="14"></a>`
+    : '';
+  root.innerHTML = link + inner;
   return root;
+}
+
+function findContractInsertionPoint() {
+  if (getSiteFamily() !== 'etherscan') return null;
+  const headings = document.querySelectorAll('h4.text-cap');
+  for (let i = 0; i < headings.length; i++) {
+    if (!/contract/i.test(headings[i].textContent || '')) continue;
+    const addrRow = headings[i].nextElementSibling;
+    if (addrRow && addrRow.id !== HONEYPOT_ID) return { refEl: addrRow, position: 'afterend' };
+    return { refEl: headings[i], position: 'afterend' };
+  }
+  return null;
+}
+
+function injectHoneypotPanel(el) {
+  const existing = document.getElementById(HONEYPOT_ID);
+  if (existing) {
+    if (existing.classList.contains('dthelper-tax-inline--contract')) el.classList.add('dthelper-tax-inline--contract');
+    existing.replaceWith(el);
+    return;
+  }
+  const point = findContractInsertionPoint();
+  if (point) {
+    el.classList.add('dthelper-tax-inline--contract');
+    point.refEl.insertAdjacentElement(point.position, el);
+    return;
+  }
+  injectPanel(el);
 }
