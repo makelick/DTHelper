@@ -1,11 +1,14 @@
 {
     "manifest_version": 3,
     "name": "DT Helper",
-    "version": "1.0.0",
-    "description": "Shows liquidity pool data from GeckoTerminal and Dexscreener on explorer token pages.",
+    "version": "1.1.0",
+    "description": "Shows additional data on explorer pages.",
     "permissions": [
         "storage"
     ],
+    "background": {
+        "service_worker": "js/background.js"
+    },
     "action": {
         "default_popup": "popup.html",
         "default_title": "DT Helper settings"
@@ -24,7 +27,10 @@
         "https://gnosisscan.io/*",
         "https://sonicscan.org/*",
         "https://hyperevmscan.io/*",
+        "https://robin.etherscan.io/*",
+        "https://arc.etherscan.io/*",
         "https://api.geckoterminal.com/*",
+        "https://www.geckoterminal.com/*",
         "https://api.dexscreener.com/*"
     ],
     "content_scripts": [
@@ -42,11 +48,18 @@
                 "https://berascan.com/*",
                 "https://gnosisscan.io/*",
                 "https://sonicscan.org/*",
-                "https://hyperevmscan.io/*"
+                "https://hyperevmscan.io/*",
+                "https://robin.etherscan.io/*",
+                "https://arc.etherscan.io/*"
             ],
             "js": [
-                "config.js",
-                "content.js"
+                "js/config.js",
+                "js/constants.js",
+                "js/utils.js",
+                "js/api.js",
+                "js/pools.js",
+                "js/dom.js",
+                "js/main.js"
             ],
             "css": [
                 "content.css"

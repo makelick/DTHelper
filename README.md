@@ -19,6 +19,8 @@ The extension only runs on these domains:
 - https://gnosisscan.io/
 - https://sonicscan.org/
 - https://hyperevmscan.io/
+- https://robin.etherscan.io/ (Robinhood Chain)
+- https://arc.etherscan.io/ (Arc)
 
 ## What it does
 

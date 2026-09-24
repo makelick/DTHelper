@@ -1,3 +1,4 @@
+'use strict';
 
 const SCANNER_CONFIG = {
   'solscan.io': {
@@ -78,6 +79,18 @@ const SCANNER_CONFIG = {
     tokenPathPattern: /^\/token\/(0x[a-fA-F0-9]{40})/,
     theme: 'hyperevm',
   },
+  'robin.etherscan.io': {
+    geckoNetwork: 'robinhood',
+    dexscreenerChainId: 'robinhood',
+    tokenPathPattern: /^\/token\/(0x[a-fA-F0-9]{40})/,
+    theme: 'robinhood',
+  },
+  'arc.etherscan.io': {
+    geckoNetwork: 'arc',
+    dexscreenerChainId: 'arc',
+    tokenPathPattern: /^\/token\/(0x[a-fA-F0-9]{40})/,
+    theme: 'arc',
+  },
 };
 
 function getScannerConfig() {
@@ -85,7 +98,6 @@ function getScannerConfig() {
   return SCANNER_CONFIG[host] || null;
 }
 
-/** Pathname with repeated slashes collapsed so //token/0x and /token/0x both match. */
 function getNormalizedPathname() {
   return window.location.pathname.replace(/\/+/g, '/');
 }
@@ -100,7 +112,6 @@ function getTokenPageContext() {
   return { address, config };
 }
 
-/** Match tx page path: /tx/0x... (EVM) or /tx/{signature} (Solana). Returns tx hash/signature or null. */
 function getTxPageContext() {
   const config = getScannerConfig();
   if (!config) return null;
@@ -112,7 +123,6 @@ function getTxPageContext() {
   return null;
 }
 
-/** Bridge scanners: label and URL builder (txHash) => href. Only scanners that support tx-hash search. */
 const BRIDGE_SCANNERS = [
   { id: 'layerzero', name: 'LayerZero', url: function (h) { return 'https://layerzeroscan.com/tx/' + encodeURIComponent(h); }, logo: 'icons/layerzero.ico' },
   { id: 'wormhole', name: 'Wormhole', url: function (h) { return 'https://wormholescan.io/#/tx/' + encodeURIComponent(h); }, logo: 'icons/wormhole.svg' },

@@ -104,6 +104,18 @@
   box-shadow: 0 2px 12px rgba(255, 0, 122, 0.25), 0 0 0 1px rgba(255, 255, 255, 0.5) inset;
 }
 
+.dthelper-panel[data-chain="robinhood"] {
+  border-color: #00c805;
+  background: linear-gradient(145deg, #f0fff1 0%, #e0fbe2 100%);
+  box-shadow: 0 2px 12px rgba(0, 200, 5, 0.25), 0 0 0 1px rgba(255, 255, 255, 0.5) inset;
+}
+
+.dthelper-panel[data-chain="arc"] {
+  border-color: #2775ca;
+  background: linear-gradient(145deg, #f0f6fd 0%, #e2eefb 100%);
+  box-shadow: 0 2px 12px rgba(39, 117, 202, 0.25), 0 0 0 1px rgba(255, 255, 255, 0.5) inset;
+}
+
 .dthelper-title-row {
   display: flex;
   align-items: center;
@@ -335,6 +347,14 @@
   color: #d6006e;
 }
 
+.dthelper-panel[data-chain="robinhood"] .dthelper-table th {
+  color: #009a04;
+}
+
+.dthelper-panel[data-chain="arc"] .dthelper-table th {
+  color: #2775ca;
+}
+
 .dthelper-panel[data-chain="ethereum"] .dthelper-title {
   color: #4c5fd5;
 }
@@ -385,6 +405,14 @@
 
 .dthelper-panel[data-chain="unichain"] .dthelper-title {
   color: #d6006e;
+}
+
+.dthelper-panel[data-chain="robinhood"] .dthelper-title {
+  color: #009a04;
+}
+
+.dthelper-panel[data-chain="arc"] .dthelper-title {
+  color: #2775ca;
 }
 
 body.dark .dthelper-panel,
@@ -446,7 +474,6 @@ body.dark .dthelper-error,
   color: #ef5350;
 }
 
-/* Transaction page: "Search at" bridge scanners row — match scanner page text */
 .dthelper-search-at {
   display: flex;
   flex-wrap: wrap;
@@ -467,7 +494,6 @@ body.dark .dthelper-error,
   margin-right: 4px;
 }
 
-/* Solscan: separate style + 20px start padding */
 .dthelper-search-at.dthelper-search-at--solscan {
   font-family: Roboto, system-ui, -apple-system, "Segoe UI", sans-serif;
   font-size: 14px;
