@@ -191,8 +191,28 @@ async function fetchDexscreenerPools(chainId, tokenAddress) {
     .slice(0, MAX_POOLS);
 }
 
-async function fetchHoneypot(chainId, tokenAddress) {
-  const url = `${HONEYPOT_BASE}/v2/IsHoneypot?address=${encodeURIComponent(tokenAddress)}&chainID=${encodeURIComponent(chainId)}`;
+function parseHoneypotResponse(json) {
+  const sim = json.simulationResult || {};
+  const summary = json.summary || {};
+  return {
+    isHoneypot: !!(json.honeypotResult && json.honeypotResult.isHoneypot),
+    honeypotReason: json.honeypotResult && json.honeypotResult.honeypotReason ? String(json.honeypotResult.honeypotReason) : '',
+    simulationSuccess: json.simulationSuccess !== false,
+    simulationError: json.simulationError ? String(json.simulationError) : '',
+    buyTax: sim.buyTax != null ? Number(sim.buyTax) : null,
+    sellTax: sim.sellTax != null ? Number(sim.sellTax) : null,
+    transferTax: sim.transferTax != null ? Number(sim.transferTax) : null,
+    flags: Array.isArray(summary.flags) ? summary.flags.map(function (f) { return typeof f === 'string' ? f : (f && (f.description || f.flag || f.name)) || ''; }).filter(Boolean) : [],
+    openSource: json.contractCode ? json.contractCode.openSource !== false : null,
+    pairName: json.pair && json.pair.pair && json.pair.pair.name ? String(json.pair.pair.name) : '',
+    pairAddress: json.pairAddress ? String(json.pairAddress).toLowerCase() : '',
+    tokenSymbol: json.token && json.token.symbol ? String(json.token.symbol) : '',
+  };
+}
+
+async function honeypotRequest(chainId, tokenAddress, pairAddress) {
+  var url = `${HONEYPOT_BASE}/v2/IsHoneypot?address=${encodeURIComponent(tokenAddress)}&chainID=${encodeURIComponent(chainId)}`;
+  if (pairAddress) url += '&pair=' + encodeURIComponent(pairAddress);
   var res;
   try {
     res = await extensionFetch(url, { headers: { Accept: 'application/json' } });
@@ -208,19 +228,53 @@ async function fetchHoneypot(chainId, tokenAddress) {
     throw new Error(msg);
   }
   if (!json || typeof json !== 'object') throw new Error('Invalid response');
-  const sim = json.simulationResult || {};
-  const summary = json.summary || {};
-  return {
-    isHoneypot: !!(json.honeypotResult && json.honeypotResult.isHoneypot),
-    honeypotReason: json.honeypotResult && json.honeypotResult.honeypotReason ? String(json.honeypotResult.honeypotReason) : '',
-    simulationSuccess: json.simulationSuccess !== false,
-    simulationError: json.simulationError ? String(json.simulationError) : '',
-    buyTax: sim.buyTax != null ? Number(sim.buyTax) : null,
-    sellTax: sim.sellTax != null ? Number(sim.sellTax) : null,
-    transferTax: sim.transferTax != null ? Number(sim.transferTax) : null,
-    flags: Array.isArray(summary.flags) ? summary.flags.map(function (f) { return typeof f === 'string' ? f : (f && (f.description || f.flag || f.name)) || ''; }).filter(Boolean) : [],
-    openSource: json.contractCode ? json.contractCode.openSource !== false : null,
-    pairName: json.pair && json.pair.pair && json.pair.pair.name ? String(json.pair.pair.name) : '',
-    tokenSymbol: json.token && json.token.symbol ? String(json.token.symbol) : '',
-  };
+  return parseHoneypotResponse(json);
+}
+
+async function fetchHoneypotPairs(chainId, tokenAddress) {
+  const url = `${HONEYPOT_BASE}/v1/GetPairs?address=${encodeURIComponent(tokenAddress)}&chainID=${encodeURIComponent(chainId)}`;
+  try {
+    const res = await extensionFetch(url, { headers: { Accept: 'application/json' } });
+    if (!res.ok) {
+      logError('Honeypot', 'GetPairs not ok', null, url, res.status);
+      return [];
+    }
+    const list = JSON.parse(res.body);
+    if (!Array.isArray(list)) return [];
+    return list
+      .map(function (p) {
+        const pair = p && p.Pair ? p.Pair : {};
+        return { address: pair.Address ? String(pair.Address).toLowerCase() : '', name: pair.Name || '', liquidity: Number(p.Liquidity) || 0 };
+      })
+      .filter(function (p) { return p.address; })
+      .sort(function (a, b) { return b.liquidity - a.liquidity; });
+  } catch (e) {
+    logError('Honeypot', 'GetPairs failed', e, url);
+    return [];
+  }
+}
+
+async function fetchHoneypot(chainId, tokenAddress) {
+  const first = await honeypotRequest(chainId, tokenAddress, null);
+  if (first.simulationSuccess) return first;
+
+  // Default pair failed to simulate: retry on the next most liquid pools.
+  const pairs = await fetchHoneypotPairs(chainId, tokenAddress);
+  const candidates = pairs.filter(function (p) { return p.address !== first.pairAddress; }).slice(0, HONEYPOT_FALLBACK_PAIRS);
+  var last = first;
+  for (var i = 0; i < candidates.length; i++) {
+    try {
+      const r = await honeypotRequest(chainId, tokenAddress, candidates[i].address);
+      if (r.simulationSuccess) {
+        r.fallbackPair = true;
+        r.failedPairName = first.pairName;
+        return r;
+      }
+      last = r;
+    } catch (e) {
+      logError('Honeypot', 'Fallback pair ' + (i + 1) + ' failed', e, candidates[i].address);
+    }
+  }
+  last.triedPairs = 1 + candidates.length;
+  return last;
 }

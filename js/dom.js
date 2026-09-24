@@ -308,6 +308,7 @@ function createHoneypotPanelElement(result, loading, error, chainTheme, honeypot
   if (result) {
     if (result.openSource === false) tooltipParts.push('Contract not verified');
     if (result.pairName) tooltipParts.push('Simulated via ' + result.pairName);
+    if (result.fallbackPair && result.failedPairName) tooltipParts.push('Default pool ' + result.failedPairName + ' failed to simulate');
     if (result.flags && result.flags.length) tooltipParts.push('Flags: ' + result.flags.slice(0, 5).join('; '));
   }
 
@@ -324,7 +325,8 @@ function createHoneypotPanelElement(result, loading, error, chainTheme, honeypot
     if (result.isHoneypot) {
       parts.push(`<span class="dthelper-tax-badge dthelper-tax-badge-bad" title="${escapeAttr(result.honeypotReason || 'honeypot.is flagged this token as a honeypot')}">HONEYPOT</span>`);
     } else if (!result.simulationSuccess) {
-      parts.push(`<span class="dthelper-tax-badge dthelper-tax-badge-warn" title="${escapeAttr(result.simulationError || 'Simulation failed')}">SIM FAILED</span>`);
+      const failMsg = (result.simulationError || 'Simulation failed') + (result.triedPairs > 1 ? ' (tried ' + result.triedPairs + ' pools)' : '');
+      parts.push(`<span class="dthelper-tax-badge dthelper-tax-badge-warn" title="${escapeAttr(failMsg)}">SIM FAILED</span>`);
     }
     parts.push(item('Buy', result.buyTax), item('Sell', result.sellTax), item('Transfer', result.transferTax));
     inner = parts.join('');

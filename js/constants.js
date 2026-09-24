@@ -9,6 +9,7 @@ const DEXSCREENER_FAVICON = 'https://dexscreener.com/favicon.ico';
 const MAX_POOLS = 5;
 const POOL_ID = 'dthelper-liquidity-panel';
 const HONEYPOT_ID = 'dthelper-honeypot-panel';
+const HONEYPOT_FALLBACK_PAIRS = 3;
 const STORAGE_DEBUG = 'dthelperDebug';
 const STORAGE_EXPANDED = 'dthelperExpanded';
 const STORAGE_SHOW_CARD = 'dthelperShowCard';
