@@ -218,7 +218,6 @@ async function fetchHoneypot(chainId, tokenAddress) {
     buyTax: sim.buyTax != null ? Number(sim.buyTax) : null,
     sellTax: sim.sellTax != null ? Number(sim.sellTax) : null,
     transferTax: sim.transferTax != null ? Number(sim.transferTax) : null,
-    risk: summary.risk ? String(summary.risk) : '',
     flags: Array.isArray(summary.flags) ? summary.flags.map(function (f) { return typeof f === 'string' ? f : (f && (f.description || f.flag || f.name)) || ''; }).filter(Boolean) : [],
     openSource: json.contractCode ? json.contractCode.openSource !== false : null,
     pairName: json.pair && json.pair.pair && json.pair.pair.name ? String(json.pair.pair.name) : '',

@@ -36,7 +36,7 @@ On **token pages** (e.g. `etherscan.io/token/0x...` or `solscan.io/token/<addres
 
 Pools with no volume and no trades in the last 24h are dimmed.
 
-On **Ethereum, BSC and Base** token pages a compact tax row is added under the token contract address (in the "Other Info" card) with the [honeypot.is](https://honeypot.is/) simulation result: buy / sell / transfer tax, risk level and a HONEYPOT badge when flagged. Hover the honeypot.is icon for details (flags, simulated pair).
+On **Ethereum, BSC and Base** token pages a compact tax row is added under the token contract address (in the "Other Info" card) with the [honeypot.is](https://honeypot.is/) simulation result: buy / sell / transfer tax and a HONEYPOT badge when flagged. Hover the honeypot.is icon for details (flags, simulated pair).
 
 Data is loaded automatically when you open a token page. Up to 10 of the largest pools are shown, merged from both APIs.
 

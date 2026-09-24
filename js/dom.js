@@ -306,7 +306,6 @@ function createHoneypotPanelElement(result, loading, error, chainTheme, honeypot
 
   const tooltipParts = [];
   if (result) {
-    if (result.risk) tooltipParts.push('Risk: ' + result.risk);
     if (result.openSource === false) tooltipParts.push('Contract not verified');
     if (result.pairName) tooltipParts.push('Simulated via ' + result.pairName);
     if (result.flags && result.flags.length) tooltipParts.push('Flags: ' + result.flags.slice(0, 5).join('; '));
@@ -328,10 +327,6 @@ function createHoneypotPanelElement(result, loading, error, chainTheme, honeypot
       parts.push(`<span class="dthelper-tax-badge dthelper-tax-badge-warn" title="${escapeAttr(result.simulationError || 'Simulation failed')}">SIM FAILED</span>`);
     }
     parts.push(item('Buy', result.buyTax), item('Sell', result.sellTax), item('Transfer', result.transferTax));
-    if (result.risk) {
-      const riskCls = /high|very/i.test(result.risk) ? 'dthelper-tax-bad' : /medium|mid/i.test(result.risk) ? 'dthelper-tax-warn' : 'dthelper-tax-ok';
-      parts.push(`<span class="dthelper-tax-item"><span class="dthelper-tax-label">Risk</span><span class="dthelper-tax-value ${riskCls}">${escapeHtml(result.risk)}</span></span>`);
-    }
     inner = parts.join('');
   }
 
