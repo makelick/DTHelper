@@ -2,10 +2,13 @@
 
 const Gecko_BASE = 'https://api.geckoterminal.com/api/v2';
 const DEXSCREENER_BASE = 'https://api.dexscreener.com';
+const HONEYPOT_BASE = 'https://api.honeypot.is';
+const HONEYPOT_FAVICON = 'https://honeypot.is/favicons/favicon-32x32.png';
 const Gecko_FAVICON = 'https://www.geckoterminal.com/favicon.ico';
 const DEXSCREENER_FAVICON = 'https://dexscreener.com/favicon.ico';
 const MAX_POOLS = 5;
 const POOL_ID = 'dthelper-liquidity-panel';
+const HONEYPOT_ID = 'dthelper-honeypot-panel';
 const STORAGE_DEBUG = 'dthelperDebug';
 const STORAGE_EXPANDED = 'dthelperExpanded';
 const STORAGE_SHOW_CARD = 'dthelperShowCard';

@@ -116,7 +116,12 @@ async function fetchGeckoTerminalPools(network, tokenAddress) {
     const reserveUsd = parseFloat(att.reserve_in_usd) || 0;
     const addr = (att.address || '').toLowerCase();
     const composition = compositionByAddress.get(addr) || { baseAmount: '—', quoteAmount: '—' };
+    const vol = att.volume_usd || {};
+    const tx24 = (att.transactions || {}).h24 || {};
     return {
+      volume24h: parseFloat(vol.h24) || 0,
+      buys24h: Number(tx24.buys) || 0,
+      sells24h: Number(tx24.sells) || 0,
       pair: pairStr,
       liquidityUsd: reserveUsd,
       baseSymbol: baseSym,
@@ -161,7 +166,12 @@ async function fetchDexscreenerPools(chainId, tokenAddress) {
       const usd = typeof liq.usd === 'number' ? liq.usd : parseFloat(liq.usd) || 0;
       const baseAmount = liq.base != null ? formatNumber(liq.base) : '—';
       const quoteAmount = liq.quote != null ? formatNumber(liq.quote) : '—';
+      const vol = p.volume || {};
+      const tx24 = (p.txns || {}).h24 || {};
       return {
+        volume24h: typeof vol.h24 === 'number' ? vol.h24 : parseFloat(vol.h24) || 0,
+        buys24h: Number(tx24.buys) || 0,
+        sells24h: Number(tx24.sells) || 0,
         pair: `${base} / ${quote}`,
         liquidityUsd: usd,
         baseSymbol: base,
@@ -179,4 +189,39 @@ async function fetchDexscreenerPools(chainId, tokenAddress) {
     })
     .sort((a, b) => b.liquidityUsd - a.liquidityUsd)
     .slice(0, MAX_POOLS);
+}
+
+async function fetchHoneypot(chainId, tokenAddress) {
+  const url = `${HONEYPOT_BASE}/v2/IsHoneypot?address=${encodeURIComponent(tokenAddress)}&chainID=${encodeURIComponent(chainId)}`;
+  var res;
+  try {
+    res = await extensionFetch(url, { headers: { Accept: 'application/json' } });
+  } catch (e) {
+    logError('Honeypot', 'Fetch failed', e, url);
+    throw e;
+  }
+  var json = null;
+  try { json = JSON.parse(res.body); } catch (_) { json = null; }
+  if (!res.ok) {
+    logError('Honeypot', 'Response not ok', null, url, res.status);
+    var msg = json && (json.message || json.error) ? String(json.message || json.error) : 'HTTP ' + res.status;
+    throw new Error(msg);
+  }
+  if (!json || typeof json !== 'object') throw new Error('Invalid response');
+  const sim = json.simulationResult || {};
+  const summary = json.summary || {};
+  return {
+    isHoneypot: !!(json.honeypotResult && json.honeypotResult.isHoneypot),
+    honeypotReason: json.honeypotResult && json.honeypotResult.honeypotReason ? String(json.honeypotResult.honeypotReason) : '',
+    simulationSuccess: json.simulationSuccess !== false,
+    simulationError: json.simulationError ? String(json.simulationError) : '',
+    buyTax: sim.buyTax != null ? Number(sim.buyTax) : null,
+    sellTax: sim.sellTax != null ? Number(sim.sellTax) : null,
+    transferTax: sim.transferTax != null ? Number(sim.transferTax) : null,
+    risk: summary.risk ? String(summary.risk) : '',
+    flags: Array.isArray(summary.flags) ? summary.flags.map(function (f) { return typeof f === 'string' ? f : (f && (f.description || f.flag || f.name)) || ''; }).filter(Boolean) : [],
+    openSource: json.contractCode ? json.contractCode.openSource !== false : null,
+    pairName: json.pair && json.pair.pair && json.pair.pair.name ? String(json.pair.pair.name) : '',
+    tokenSymbol: json.token && json.token.symbol ? String(json.token.symbol) : '',
+  };
 }

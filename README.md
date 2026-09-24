@@ -31,7 +31,12 @@ On **token pages** (e.g. `etherscan.io/token/0x...` or `solscan.io/token/<addres
 - **Base / quote amounts** in the pool (when available from Dexscreener)
 - **DEX** name
 - **Pool fee** (when available from GeckoTerminal pool name, e.g. 0.05%)
+- **24h volume** (USD) and **24h trades** (buys / sells), so you can see whether the pool is actually active
 - **Link** to the pool on GeckoTerminal or Dexscreener
+
+Pools with no volume and no trades in the last 24h are dimmed.
+
+On **Ethereum, BSC and Base** token pages a second card, **Token taxes**, shows the [honeypot.is](https://honeypot.is/) simulation result: buy / sell / transfer tax, honeypot flag, risk level and any flags reported.
 
 Data is loaded automatically when you open a token page. Up to 10 of the largest pools are shown, merged from both APIs.
 
@@ -49,4 +54,4 @@ Data is loaded automatically when you open a token page. Up to 10 of the largest
 
 ## Permissions
 
-- **Host permissions** only for the block explorer domains listed above and for `api.geckoterminal.com` and `api.dexscreener.com` (to fetch pool data). No other permissions are requested.
+- **Host permissions** only for the block explorer domains listed above and for `api.geckoterminal.com`, `api.dexscreener.com` and `api.honeypot.is` (to fetch pool and tax data). No other permissions are requested.

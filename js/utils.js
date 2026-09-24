@@ -73,3 +73,25 @@ function escapeHtml(s) {
 function escapeAttr(s) {
   return String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
+
+function formatCount(n) {
+  const x = typeof n === 'number' ? n : parseInt(n, 10);
+  if (Number.isNaN(x)) return '—';
+  if (x >= 1e6) return (x / 1e6).toFixed(1) + 'M';
+  if (x >= 1e4) return (x / 1e3).toFixed(1) + 'K';
+  return String(x);
+}
+
+function formatTaxPct(t) {
+  if (t == null || Number.isNaN(Number(t))) return '—';
+  const x = Number(t);
+  return (Math.round(x * 100) / 100) + '%';
+}
+
+function taxLevelClass(t) {
+  if (t == null || Number.isNaN(Number(t))) return '';
+  const x = Number(t);
+  if (x >= 20) return 'dthelper-tax-bad';
+  if (x > 5) return 'dthelper-tax-warn';
+  return 'dthelper-tax-ok';
+}

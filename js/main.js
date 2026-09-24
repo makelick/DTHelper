@@ -105,6 +105,23 @@ async function loadAndShowPools(ctx) {
   });
 }
 
+async function loadAndShowHoneypot(ctx) {
+  const { address, config } = ctx;
+  if (!config.honeypotChainId) return;
+  const chainTheme = config.theme || 'default';
+  const honeypotUrl = 'https://honeypot.is/' + (config.honeypotPath || '') + '?address=' + encodeURIComponent(address);
+  injectPanel(createHoneypotPanelElement(null, true, null, chainTheme, honeypotUrl));
+  let result = null;
+  let error = null;
+  try {
+    result = await fetchHoneypot(config.honeypotChainId, address);
+  } catch (e) {
+    error = e && e.message && e.message !== 'Failed to fetch' ? e.message : 'Failed to load honeypot.is data';
+    logError('Honeypot', error, e, 'fetchHoneypot');
+  }
+  injectPanel(createHoneypotPanelElement(result, false, error, chainTheme, honeypotUrl));
+}
+
 function removeInjectedPanel() {
   var wrapper = document.getElementById(WRAPPER_ID);
   if (wrapper) wrapper.remove();
@@ -125,6 +142,7 @@ function run() {
     }
     ensureInsertionPoint(function () {
       loadAndShowPools(ctx);
+      loadAndShowHoneypot(ctx);
     });
   });
 }

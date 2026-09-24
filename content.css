@@ -1,4 +1,8 @@
 .dthelper-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
   width: fit-content;
   max-width: 100%;
 }
@@ -295,6 +299,111 @@
   font-size: 12px;
 }
 
+.dthelper-vol-cell {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.dthelper-trades-cell {
+  white-space: normal;
+}
+
+.dthelper-trades-total {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.dthelper-trades-split {
+  font-size: 10px;
+  color: #666;
+  white-space: nowrap;
+}
+
+.dthelper-buys {
+  color: #1b8a3a;
+}
+
+.dthelper-sells {
+  color: #c62828;
+}
+
+.dthelper-muted {
+  color: #999;
+}
+
+.dthelper-table tbody tr.dthelper-row-inactive td {
+  opacity: 0.55;
+}
+
+.dthelper-honeypot .dthelper-content {
+  min-width: 220px;
+}
+
+.dthelper-src-hp {
+  background: rgba(255, 152, 0, 0.15);
+}
+
+.dthelper-tax-grid {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.dthelper-tax-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 68px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.55);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.dthelper-tax-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: #666;
+  margin-bottom: 2px;
+}
+
+.dthelper-tax-value {
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.dthelper-tax-ok {
+  color: #1b8a3a;
+}
+
+.dthelper-tax-warn {
+  color: #e69500;
+}
+
+.dthelper-tax-bad {
+  color: #c62828;
+}
+
+.dthelper-hp-alert {
+  font-weight: 700;
+  font-size: 12px;
+  margin-bottom: 6px;
+}
+
+.dthelper-hp-meta {
+  margin-top: 6px;
+  font-size: 11px;
+  color: #666;
+}
+
+.dthelper-hp-flags {
+  margin: 4px 0 0;
+  padding-left: 16px;
+  font-size: 11px;
+  color: #8a5a00;
+}
+
 .dthelper-panel[data-chain="ethereum"] .dthelper-table th {
   color: #4c5fd5;
 }
@@ -467,6 +576,45 @@ body.dark .dthelper-src-dx,
 body.dark .dthelper-message,
 [data-theme="dark"] .dthelper-message {
   color: #b0bec5;
+}
+
+body.dark .dthelper-trades-split,
+body.dark .dthelper-tax-label,
+body.dark .dthelper-hp-meta,
+[data-theme="dark"] .dthelper-trades-split,
+[data-theme="dark"] .dthelper-tax-label,
+[data-theme="dark"] .dthelper-hp-meta {
+  color: #b0bec5;
+}
+
+body.dark .dthelper-tax-item,
+[data-theme="dark"] .dthelper-tax-item {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+body.dark .dthelper-buys,
+body.dark .dthelper-tax-ok,
+[data-theme="dark"] .dthelper-buys,
+[data-theme="dark"] .dthelper-tax-ok {
+  color: #66bb6a;
+}
+
+body.dark .dthelper-sells,
+body.dark .dthelper-tax-bad,
+[data-theme="dark"] .dthelper-sells,
+[data-theme="dark"] .dthelper-tax-bad {
+  color: #ef5350;
+}
+
+body.dark .dthelper-tax-warn,
+[data-theme="dark"] .dthelper-tax-warn {
+  color: #ffb74d;
+}
+
+body.dark .dthelper-hp-flags,
+[data-theme="dark"] .dthelper-hp-flags {
+  color: #ffcc80;
 }
 
 body.dark .dthelper-error,

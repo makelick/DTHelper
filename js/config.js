@@ -8,12 +8,16 @@ const SCANNER_CONFIG = {
     theme: 'solana',
   },
   'etherscan.io': {
+    honeypotChainId: '1',
+    honeypotPath: 'ethereum',
     geckoNetwork: 'eth',
     dexscreenerChainId: 'ethereum',
     tokenPathPattern: /^\/token\/(0x[a-fA-F0-9]{40})/,
     theme: 'ethereum',
   },
   'bscscan.com': {
+    honeypotChainId: '56',
+    honeypotPath: '',
     geckoNetwork: 'bsc',
     dexscreenerChainId: 'bsc',
     tokenPathPattern: /^\/token\/(0x[a-fA-F0-9]{40})/,
@@ -26,6 +30,8 @@ const SCANNER_CONFIG = {
     theme: 'polygon',
   },
   'basescan.org': {
+    honeypotChainId: '8453',
+    honeypotPath: 'base',
     geckoNetwork: 'base',
     dexscreenerChainId: 'base',
     tokenPathPattern: /^\/token\/(0x[a-fA-F0-9]{40})/,

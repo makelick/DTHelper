@@ -17,6 +17,11 @@ function mergePools(geckoPools, dexscreenerPools) {
       merged.sources = [...new Set([...(existing.sources || [existing.source]), ...sources])];
       merged.geckoUrl = merged.geckoUrl || p.geckoUrl || null;
       merged.dexUrl = merged.dexUrl || p.dexUrl || null;
+      merged.volume24h = Math.max(existing.volume24h || 0, p.volume24h || 0);
+      if ((p.buys24h || 0) + (p.sells24h || 0) > (existing.buys24h || 0) + (existing.sells24h || 0)) {
+        merged.buys24h = p.buys24h || 0;
+        merged.sells24h = p.sells24h || 0;
+      }
       if (p.baseAmount !== '—' || p.quoteAmount !== '—') {
         merged.baseAmount = p.baseAmount;
         merged.quoteAmount = p.quoteAmount;

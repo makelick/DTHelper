@@ -1,7 +1,7 @@
 {
     "manifest_version": 3,
     "name": "DT Helper",
-    "version": "1.1.0",
+    "version": "1.2.0",
     "description": "Shows additional data on explorer pages.",
     "permissions": [
         "storage"
@@ -31,7 +31,8 @@
         "https://arc.etherscan.io/*",
         "https://api.geckoterminal.com/*",
         "https://www.geckoterminal.com/*",
-        "https://api.dexscreener.com/*"
+        "https://api.dexscreener.com/*",
+        "https://api.honeypot.is/*"
     ],
     "content_scripts": [
         {

@@ -92,6 +92,8 @@ function createPanelElement(pools, loading, error, tokenAddress, chainTheme, sta
           <th>Pair</th>
           <th>Liquidity</th>
           <th>Pool</th>
+          <th>Vol 24h</th>
+          <th>Trades 24h</th>
           <th>DEX</th>
           <th>Source</th>
         </tr>
@@ -108,10 +110,21 @@ function createPanelElement(pools, loading, error, tokenAddress, chainTheme, sta
       }
       if (p.geckoUrl) row.dataset.geckoUrl = p.geckoUrl;
       const sourceIcons = renderSourceIcons(p.sources, p.geckoUrl, p.dexUrl, p.geckoInvalid);
+      const buys = p.buys24h || 0;
+      const sells = p.sells24h || 0;
+      const trades = buys + sells;
+      const vol = p.volume24h || 0;
+      if (vol <= 0 && trades <= 0) row.classList.add('dthelper-row-inactive');
+      const volHtml = vol > 0 ? formatUsd(vol) : '<span class="dthelper-muted" title="No trading volume in the last 24h">—</span>';
+      const tradesHtml = trades > 0
+        ? `<span class="dthelper-trades-total">${formatCount(trades)}</span><br><span class="dthelper-trades-split"><span class="dthelper-buys" title="Buys">${formatCount(buys)} B</span> / <span class="dthelper-sells" title="Sells">${formatCount(sells)} S</span></span>`
+        : '<span class="dthelper-muted" title="No trades in the last 24h">—</span>';
       row.innerHTML = `
         <td class="dthelper-pair-cell">${escapeHtml(pair)}</td>
         <td class="dthelper-liquidity-cell">${formatUsd(p.liquidityUsd)}</td>
         <td class="dthelper-pool-cell">${compositionHtml}</td>
+        <td class="dthelper-vol-cell">${volHtml}</td>
+        <td class="dthelper-trades-cell">${tradesHtml}</td>
         <td class="dthelper-dex-cell">${escapeHtml(toHumanDex(p.dex))}</td>
         <td class="dthelper-src-cell">${sourceIcons}</td>
       `;
@@ -152,12 +165,27 @@ function createPanelElement(pools, loading, error, tokenAddress, chainTheme, sta
   return root;
 }
 
+function findSolscanTitleBlock() {
+  // Page container: <div class="my-0 mx-auto max-w-full ..."> whose first child is the "Token <name>" title row.
+  const containers = document.querySelectorAll('#__next div.mx-auto.max-w-full');
+  for (let i = 0; i < containers.length; i++) {
+    const first = containers[i].firstElementChild;
+    if (!first || first.id === WRAPPER_ID) continue;
+    if (first.closest('footer')) continue;
+    const text = (first.textContent || '').trim();
+    if (/^Token\b/.test(text) && text.length < 200) return first;
+  }
+  return null;
+}
+
 function findInsertionPoint() {
   if (getSiteFamily() === 'solscan') {
-    const el = document.querySelector(
+    const titleBlock = findSolscanTitleBlock();
+    if (titleBlock) return { refEl: titleBlock, position: 'afterend' };
+    const legacy = document.querySelector(
       '#__next div[class*="mx-auto"][class*="max-w"] > div[class*="items-start"][class*="mb-"]'
     );
-    if (el) return { refEl: el, position: 'afterend' };
+    if (legacy) return { refEl: legacy, position: 'afterend' };
   } else {
     const header = document.querySelector('main#content > section.container-xxl');
     if (header) return { refEl: header, position: 'afterend' };
@@ -189,9 +217,6 @@ function applyEvmWrapperMargin(wrapper) {
 }
 
 function injectPanel(panelEl) {
-  var existing = document.getElementById(POOL_ID);
-  if (existing) existing.remove();
-
   var wrapper = document.getElementById(WRAPPER_ID);
   if (!wrapper) {
     wrapper = document.createElement('div');
@@ -205,8 +230,14 @@ function injectPanel(panelEl) {
       fallback.insertBefore(wrapper, fallback.firstChild);
     }
   }
-  wrapper.innerHTML = '';
-  wrapper.appendChild(panelEl);
+  var existing = panelEl.id ? wrapper.querySelector('#' + panelEl.id) : null;
+  if (existing) {
+    existing.replaceWith(panelEl);
+  } else if (panelEl.id === POOL_ID && wrapper.firstChild) {
+    wrapper.insertBefore(panelEl, wrapper.firstChild);
+  } else {
+    wrapper.appendChild(panelEl);
+  }
   if (wrapper.classList.contains('dthelper-wrapper-evm')) {
     applyEvmWrapperMargin(wrapper);
     ensureEvmResizeListener();
@@ -265,4 +296,59 @@ function createSearchAtSection(txHash) {
   wrap.appendChild(label);
   wrap.appendChild(btnRow);
   return wrap;
+}
+
+function createHoneypotPanelElement(result, loading, error, chainTheme, honeypotUrl) {
+  const root = document.createElement('div');
+  root.id = HONEYPOT_ID;
+  root.className = 'dthelper-panel dthelper-honeypot';
+  if (chainTheme) root.dataset.chain = chainTheme;
+
+  const titleRow = document.createElement('div');
+  titleRow.className = 'dthelper-title-row';
+  const title = document.createElement('span');
+  title.className = 'dthelper-title';
+  title.textContent = 'Token taxes';
+  titleRow.appendChild(title);
+  if (honeypotUrl) {
+    const link = document.createElement('a');
+    link.className = 'dthelper-src dthelper-src-hp';
+    link.href = honeypotUrl;
+    link.target = '_blank';
+    link.rel = 'noopener';
+    link.title = 'Open on honeypot.is';
+    link.innerHTML = `<img src="${escapeAttr(HONEYPOT_FAVICON)}" alt="HP" class="dthelper-src-img" width="16" height="16">`;
+    titleRow.appendChild(link);
+  }
+  root.appendChild(titleRow);
+
+  const content = document.createElement('div');
+  content.className = 'dthelper-content';
+  if (error) {
+    content.innerHTML = `<div class="dthelper-message dthelper-error">${escapeHtml(error)}</div>`;
+  } else if (loading) {
+    content.innerHTML = '<div class="dthelper-message dthelper-loading">Checking on honeypot.is…</div>';
+  } else if (!result) {
+    content.innerHTML = '<div class="dthelper-message">No data.</div>';
+  } else {
+    const rows = [];
+    if (result.isHoneypot) {
+      rows.push(`<div class="dthelper-hp-alert dthelper-tax-bad">HONEYPOT${result.honeypotReason ? ': ' + escapeHtml(result.honeypotReason) : ''}</div>`);
+    } else if (!result.simulationSuccess) {
+      rows.push(`<div class="dthelper-hp-alert dthelper-tax-warn">Simulation failed${result.simulationError ? ': ' + escapeHtml(result.simulationError) : ''}</div>`);
+    }
+    const tax = (label, v) => `<div class="dthelper-tax-item"><span class="dthelper-tax-label">${label}</span><span class="dthelper-tax-value ${taxLevelClass(v)}">${escapeHtml(formatTaxPct(v))}</span></div>`;
+    rows.push('<div class="dthelper-tax-grid">' + tax('Buy', result.buyTax) + tax('Sell', result.sellTax) + tax('Transfer', result.transferTax) + '</div>');
+    const meta = [];
+    if (result.risk) meta.push('Risk: ' + escapeHtml(result.risk));
+    if (result.openSource === false) meta.push('Contract not verified');
+    if (result.pairName) meta.push('via ' + escapeHtml(result.pairName));
+    if (meta.length) rows.push(`<div class="dthelper-hp-meta">${meta.join(' · ')}</div>`);
+    if (result.flags && result.flags.length) {
+      rows.push('<ul class="dthelper-hp-flags">' + result.flags.slice(0, 5).map((f) => `<li>${escapeHtml(f)}</li>`).join('') + '</ul>');
+    }
+    content.innerHTML = rows.join('');
+  }
+  root.appendChild(content);
+  return root;
 }
