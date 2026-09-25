@@ -36,7 +36,11 @@ On **token pages** (e.g. `etherscan.io/token/0x...` or `solscan.io/token/<addres
 
 Pools with no volume and no trades in the last 24h are dimmed.
 
-On **Ethereum, BSC and Base** token pages a compact tax row is added under the token contract address (in the "Other Info" card) with the [honeypot.is](https://honeypot.is/) simulation result: buy / sell / transfer tax and a HONEYPOT badge when flagged. If the default pool fails to simulate, the next three most liquid pools are tried. Hover the honeypot.is icon for details (flags, simulated pair).
+On EVM token pages a compact **tax row** is added under the token contract address (in the "Other Info" card): buy / sell / transfer tax and a HONEYPOT badge when flagged. Hover the source icon for details (flags, simulated pair).
+
+- **Ethereum, BSC, Base**: [honeypot.is](https://honeypot.is/) simulation. If the default pool fails to simulate, the next three most liquid pools are tried.
+- **Arbitrum, Polygon, Optimism, Avalanche, Gnosis, Unichain, Sonic, Berachain, Robinhood Chain, Arc**: [GoPlus](https://gopluslabs.io/) token security data. Shows NO TAX DATA when GoPlus has not analysed the token.
+- Not available on Solana and HyperEVM.
 
 Data is loaded automatically when you open a token page. Up to 10 of the largest pools are shown, merged from both APIs.
 
@@ -54,4 +58,4 @@ Data is loaded automatically when you open a token page. Up to 10 of the largest
 
 ## Permissions
 
-- **Host permissions** only for the block explorer domains listed above and for `api.geckoterminal.com`, `api.dexscreener.com` and `api.honeypot.is` (to fetch pool and tax data). No other permissions are requested.
+- **Host permissions** only for the block explorer domains listed above and for `api.geckoterminal.com`, `api.dexscreener.com`, `api.honeypot.is` and `api.gopluslabs.io` (to fetch pool and tax data). No other permissions are requested.

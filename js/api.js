@@ -278,3 +278,59 @@ async function fetchHoneypot(chainId, tokenAddress) {
   last.triedPairs = 1 + candidates.length;
   return last;
 }
+
+function goplusPct(v) {
+  if (v === '' || v == null) return null;
+  const x = parseFloat(v);
+  return Number.isNaN(x) ? null : x * 100;
+}
+
+async function fetchGoPlus(chainId, tokenAddress) {
+  const url = `${GOPLUS_BASE}/token_security/${encodeURIComponent(chainId)}?contract_addresses=${encodeURIComponent(tokenAddress)}`;
+  var res;
+  try {
+    res = await extensionFetch(url, { headers: { Accept: 'application/json' } });
+  } catch (e) {
+    logError('GoPlus', 'Fetch failed', e, url);
+    throw e;
+  }
+  var json = null;
+  try { json = JSON.parse(res.body); } catch (_) { json = null; }
+  if (!res.ok) {
+    logError('GoPlus', 'Response not ok', null, url, res.status);
+    throw new Error(json && json.message ? String(json.message) : 'HTTP ' + res.status);
+  }
+  if (!json || typeof json !== 'object') throw new Error('Invalid response');
+  if (json.code !== 1 && json.code !== '1') throw new Error(json.message ? String(json.message) : 'GoPlus error');
+  const result = json.result || {};
+  const key = Object.keys(result).find(function (k) { return k.toLowerCase() === tokenAddress.toLowerCase(); }) || Object.keys(result)[0];
+  const t = key ? result[key] : null;
+  if (!t) return { simulationSuccess: false, simulationError: 'Token not found on GoPlus', buyTax: null, sellTax: null, transferTax: null, flags: [], openSource: null, pairName: '', isHoneypot: false, honeypotReason: '' };
+
+  const buyTax = goplusPct(t.buy_tax);
+  const sellTax = goplusPct(t.sell_tax);
+  const transferTax = goplusPct(t.transfer_tax);
+  const flags = [];
+  if (t.cannot_sell_all === '1') flags.push('Cannot sell all tokens at once');
+  if (t.honeypot_with_same_creator === '1') flags.push('Creator has deployed honeypots before');
+  if (t.is_mintable === '1') flags.push('Mintable');
+  if (t.can_take_back_ownership === '1') flags.push('Ownership can be taken back');
+  if (t.is_blacklisted === '1') flags.push('Has blacklist');
+  if (t.transfer_pausable === '1') flags.push('Transfers can be paused');
+  if (t.slippage_modifiable === '1') flags.push('Tax can be modified');
+  if (t.is_proxy === '1') flags.push('Proxy contract');
+  const hasTax = buyTax != null || sellTax != null;
+  return {
+    isHoneypot: t.is_honeypot === '1',
+    honeypotReason: t.is_honeypot === '1' ? 'GoPlus flagged this token as a honeypot' : '',
+    simulationSuccess: hasTax,
+    simulationError: hasTax ? '' : (t.is_open_source === '0' ? 'Closed-source contract, tax unknown' : 'Tax unknown'),
+    buyTax: buyTax,
+    sellTax: sellTax,
+    transferTax: transferTax,
+    flags: flags,
+    openSource: t.is_open_source == null || t.is_open_source === '' ? null : t.is_open_source === '1',
+    pairName: '',
+    tokenSymbol: t.token_symbol ? String(t.token_symbol) : '',
+  };
+}

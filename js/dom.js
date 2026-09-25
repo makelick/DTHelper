@@ -298,7 +298,10 @@ function createSearchAtSection(txHash) {
   return wrap;
 }
 
-function createHoneypotPanelElement(result, loading, error, chainTheme, honeypotUrl) {
+function createHoneypotPanelElement(result, loading, error, chainTheme, provider) {
+  const honeypotUrl = provider && provider.url ? provider.url : '';
+  const providerName = provider && provider.name ? provider.name : 'honeypot.is';
+  const providerIcon = provider && provider.icon ? provider.icon : HONEYPOT_FAVICON;
   const root = document.createElement('div');
   root.id = HONEYPOT_ID;
   root.className = 'dthelper-tax-inline';
@@ -323,17 +326,19 @@ function createHoneypotPanelElement(result, loading, error, chainTheme, honeypot
     const item = (label, v) => `<span class="dthelper-tax-item"><span class="dthelper-tax-label">${label}</span><span class="dthelper-tax-value ${taxLevelClass(v)}">${escapeHtml(formatTaxPct(v))}</span></span>`;
     const parts = [];
     if (result.isHoneypot) {
-      parts.push(`<span class="dthelper-tax-badge dthelper-tax-badge-bad" title="${escapeAttr(result.honeypotReason || 'honeypot.is flagged this token as a honeypot')}">HONEYPOT</span>`);
+      parts.push(`<span class="dthelper-tax-badge dthelper-tax-badge-bad" title="${escapeAttr(result.honeypotReason || providerName + ' flagged this token as a honeypot')}">HONEYPOT</span>`);
     } else if (!result.simulationSuccess) {
       const failMsg = (result.simulationError || 'Simulation failed') + (result.triedPairs > 1 ? ' (tried ' + result.triedPairs + ' pools)' : '');
-      parts.push(`<span class="dthelper-tax-badge dthelper-tax-badge-warn" title="${escapeAttr(failMsg)}">SIM FAILED</span>`);
+      const failLabel = provider && provider.id === 'goplus' ? 'NO TAX DATA' : 'SIM FAILED';
+      parts.push(`<span class="dthelper-tax-badge dthelper-tax-badge-warn" title="${escapeAttr(failMsg)}">${failLabel}</span>`);
     }
-    parts.push(item('Buy', result.buyTax), item('Sell', result.sellTax), item('Transfer', result.transferTax));
+    parts.push(item('Buy', result.buyTax), item('Sell', result.sellTax));
+    if (result.transferTax != null || (provider && provider.id === 'honeypot')) parts.push(item('Transfer', result.transferTax));
     inner = parts.join('');
   }
 
   const link = honeypotUrl
-    ? `<a class="dthelper-tax-link" href="${escapeAttr(honeypotUrl)}" target="_blank" rel="noopener" title="${escapeAttr(['Taxes by honeypot.is'].concat(tooltipParts).join('\n'))}"><img src="${escapeAttr(HONEYPOT_FAVICON)}" alt="honeypot.is" class="dthelper-src-img" width="14" height="14"></a>`
+    ? `<a class="dthelper-tax-link" href="${escapeAttr(honeypotUrl)}" target="_blank" rel="noopener" title="${escapeAttr(['Taxes by ' + providerName].concat(tooltipParts).join('\n'))}"><img src="${escapeAttr(providerIcon)}" alt="${escapeAttr(providerName)}" class="dthelper-src-img" width="14" height="14"></a>`
     : '';
   root.innerHTML = link + inner;
   return root;

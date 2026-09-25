@@ -105,21 +105,43 @@ async function loadAndShowPools(ctx) {
   });
 }
 
+function getTaxProvider(config, address) {
+  if (config.taxProvider === 'honeypot' && config.honeypotChainId) {
+    return {
+      id: 'honeypot',
+      name: 'honeypot.is',
+      icon: HONEYPOT_FAVICON,
+      url: 'https://honeypot.is/' + (config.honeypotPath || '') + '?address=' + encodeURIComponent(address),
+      fetch: function () { return fetchHoneypot(config.honeypotChainId, address); },
+    };
+  }
+  if (config.taxProvider === 'goplus' && config.goplusChainId) {
+    return {
+      id: 'goplus',
+      name: 'GoPlus',
+      icon: GOPLUS_FAVICON,
+      url: 'https://gopluslabs.io/token-security/' + encodeURIComponent(config.goplusChainId) + '/' + encodeURIComponent(address),
+      fetch: function () { return fetchGoPlus(config.goplusChainId, address); },
+    };
+  }
+  return null;
+}
+
 async function loadAndShowHoneypot(ctx) {
   const { address, config } = ctx;
-  if (!config.honeypotChainId) return;
+  const provider = getTaxProvider(config, address);
+  if (!provider) return;
   const chainTheme = config.theme || 'default';
-  const honeypotUrl = 'https://honeypot.is/' + (config.honeypotPath || '') + '?address=' + encodeURIComponent(address);
-  injectHoneypotPanel(createHoneypotPanelElement(null, true, null, chainTheme, honeypotUrl));
+  injectHoneypotPanel(createHoneypotPanelElement(null, true, null, chainTheme, provider));
   let result = null;
   let error = null;
   try {
-    result = await fetchHoneypot(config.honeypotChainId, address);
+    result = await provider.fetch();
   } catch (e) {
-    error = e && e.message && e.message !== 'Failed to fetch' ? e.message : 'Failed to load honeypot.is data';
-    logError('Honeypot', error, e, 'fetchHoneypot');
+    error = e && e.message && e.message !== 'Failed to fetch' ? e.message : 'Failed to load ' + provider.name + ' data';
+    logError(provider.name, error, e, 'fetchTaxes');
   }
-  injectHoneypotPanel(createHoneypotPanelElement(result, false, error, chainTheme, honeypotUrl));
+  injectHoneypotPanel(createHoneypotPanelElement(result, false, error, chainTheme, provider));
 }
 
 function removeInjectedPanel() {
