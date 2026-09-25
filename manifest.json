@@ -2,17 +2,17 @@
     "manifest_version": 3,
     "name": "DT Helper",
     "version": "1.3.0",
-    "description": "Shows additional data on explorer pages.",
+    "description": "Liquidity pools, 24h volume/trades and token taxes (honeypot.is, GoPlus) on Etherscan-style explorers and Solscan token pages.",
+    "homepage_url": "https://github.com/makelick/DTHelper",
+    "icons": {
+        "16": "icons/icon16.png",
+        "32": "icons/icon32.png",
+        "48": "icons/icon48.png",
+        "128": "icons/icon128.png"
+    },
     "permissions": [
         "storage"
     ],
-    "background": {
-        "service_worker": "js/background.js"
-    },
-    "action": {
-        "default_popup": "popup.html",
-        "default_title": "DT Helper settings"
-    },
     "host_permissions": [
         "https://solscan.io/*",
         "https://etherscan.io/*",
@@ -35,6 +35,19 @@
         "https://api.honeypot.is/*",
         "https://api.gopluslabs.io/*"
     ],
+    "background": {
+        "service_worker": "js/background.js"
+    },
+    "action": {
+        "default_popup": "popup.html",
+        "default_title": "DT Helper settings",
+        "default_icon": {
+            "16": "icons/icon16.png",
+            "32": "icons/icon32.png",
+            "48": "icons/icon48.png",
+            "128": "icons/icon128.png"
+        }
+    },
     "content_scripts": [
         {
             "matches": [
@@ -75,7 +88,21 @@
                 "icons/*"
             ],
             "matches": [
-                "https://*/*"
+                "https://solscan.io/*",
+                "https://etherscan.io/*",
+                "https://bscscan.com/*",
+                "https://polygonscan.com/*",
+                "https://basescan.org/*",
+                "https://arbiscan.io/*",
+                "https://snowscan.xyz/*",
+                "https://optimistic.etherscan.io/*",
+                "https://uniscan.xyz/*",
+                "https://berascan.com/*",
+                "https://gnosisscan.io/*",
+                "https://sonicscan.org/*",
+                "https://hyperevmscan.io/*",
+                "https://robin.etherscan.io/*",
+                "https://arc.etherscan.io/*"
             ]
         }
     ]
