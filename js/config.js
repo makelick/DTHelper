@@ -156,6 +156,6 @@ const BRIDGE_SCANNERS = [
   { id: 'layerzero', name: 'LayerZero', url: function (h) { return 'https://layerzeroscan.com/tx/' + encodeURIComponent(h); }, logo: 'icons/layerzero.ico' },
   { id: 'wormhole', name: 'Wormhole', url: function (h) { return 'https://wormholescan.io/#/tx/' + encodeURIComponent(h); }, logo: 'icons/wormhole.svg' },
   { id: 'axelar', name: 'Axelar', url: function (h) { return 'https://axelarscan.io/gmp/' + encodeURIComponent(h.replace(/^0x/, '').toUpperCase()); }, logo: 'icons/axelar.ico' },
-  { id: 'debridge', name: 'deBridge', url: function (h) { return 'https://app.debridge.com/transaction?tx=' + encodeURIComponent(h); }, logo: 'icons/debridge.ico' },
+  { id: 'debridge', name: 'deBridge', url: function (h) { return 'https://app.debridge.com/messages?s=' + encodeURIComponent(h); }, logo: 'icons/debridge.ico' },
   { id: 'hyperlane', name: 'Hyperlane', url: function (h) { return 'https://explorer.hyperlane.xyz/?search=' + encodeURIComponent(h); }, logo: 'icons/hyperlane.png' },
 ];

@@ -119,6 +119,7 @@ async function fetchGeckoTerminalPools(network, tokenAddress) {
     const vol = att.volume_usd || {};
     const tx24 = (att.transactions || {}).h24 || {};
     return {
+      poolAddress: att.address || '',
       volume24h: parseFloat(vol.h24) || 0,
       buys24h: Number(tx24.buys) || 0,
       sells24h: Number(tx24.sells) || 0,
@@ -169,6 +170,7 @@ async function fetchDexscreenerPools(chainId, tokenAddress) {
       const vol = p.volume || {};
       const tx24 = (p.txns || {}).h24 || {};
       return {
+        poolAddress: p.pairAddress || '',
         volume24h: typeof vol.h24 === 'number' ? vol.h24 : parseFloat(vol.h24) || 0,
         buys24h: Number(tx24.buys) || 0,
         sells24h: Number(tx24.sells) || 0,

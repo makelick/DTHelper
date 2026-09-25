@@ -1,14 +1,23 @@
 'use strict';
 
+// Pools from the two sources are merged only when they refer to the same
+// on-chain pool address. Pools without an address never merge.
+function poolMergeKey(p, fallbackIndex) {
+  const addr = (p.poolAddress || '').trim().toLowerCase();
+  return addr ? 'addr:' + addr : 'nokey:' + (p.source || '') + ':' + fallbackIndex;
+}
+
 function mergePools(geckoPools, dexscreenerPools) {
   const byKey = new Map();
-  for (const p of geckoPools) {
-    const key = `${p.pair}|${p.dex}`;
+  for (let i = 0; i < geckoPools.length; i++) {
+    const p = geckoPools[i];
+    const key = poolMergeKey(p, i);
     const copy = { ...p, sources: p.sources || [p.source] };
     if (!byKey.has(key) || byKey.get(key).liquidityUsd < p.liquidityUsd) byKey.set(key, copy);
   }
-  for (const p of dexscreenerPools) {
-    const key = `${p.pair}|${p.dex}`;
+  for (let i = 0; i < dexscreenerPools.length; i++) {
+    const p = dexscreenerPools[i];
+    const key = poolMergeKey(p, i);
     const existing = byKey.get(key);
     const sources = p.sources || [p.source || 'dexscreener'];
     if (!existing) byKey.set(key, { ...p, sources });
